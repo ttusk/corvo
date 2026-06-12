@@ -8,6 +8,41 @@ export interface VersionedData extends CorvoPluginData {
 }
 
 /**
+ * Removes duplicate entries from an array based on a key extractor.
+ * Keeps the first occurrence of each key.
+ */
+function deduplicateByKey<T>(items: T[], getKey: (item: T) => string): T[] {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    const key = getKey(item);
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+
+/**
+ * Deduplicates all entity arrays in the plugin data.
+ * Also deduplicates subjectIds within each contest.
+ */
+function deduplicatePluginData(data: CorvoPluginData): CorvoPluginData {
+  return {
+    ...data,
+    contests: data.contests.map((contest) => ({
+      ...contest,
+      subjectIds: [...new Set(contest.subjectIds)]
+    })),
+    subjects: deduplicateByKey(data.subjects, (s) => s.id),
+    topics: deduplicateByKey(data.topics, (t) => t.id),
+    studyItems: deduplicateByKey(data.studyItems, (i) => i.id),
+    studySessions: deduplicateByKey(data.studySessions, (s) => s.id),
+    contestStates: deduplicateByKey(data.contestStates, (s) => s.contestId)
+  };
+}
+
+/**
  * Service for migrating plugin data between schema versions.
  * Handles backward compatibility when the data structure changes.
  */
@@ -16,7 +51,7 @@ export class DataMigrationService {
 
   /**
    * Migrates data from any previous version to the current version.
-   * 
+   *
    * @param data - The data to migrate (may be from any version)
    * @returns Migrated data at the current schema version
    */
@@ -31,6 +66,9 @@ export class DataMigrationService {
     if (version < 3) {
       current = this.migrateV2toV3(current);
     }
+
+    // Always deduplicate entities to prevent corruption
+    current = deduplicatePluginData(current);
 
     // Always include the current version
     return {

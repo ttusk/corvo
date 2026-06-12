@@ -41,13 +41,38 @@ function createDefaultCorvoPluginData() {
 }
 
 // src/infrastructure/persistence/DataMigrations.ts
+function deduplicateByKey(items, getKey) {
+  const seen = /* @__PURE__ */ new Set();
+  return items.filter((item) => {
+    const key = getKey(item);
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+function deduplicatePluginData(data) {
+  return {
+    ...data,
+    contests: data.contests.map((contest) => ({
+      ...contest,
+      subjectIds: [...new Set(contest.subjectIds)]
+    })),
+    subjects: deduplicateByKey(data.subjects, (s) => s.id),
+    topics: deduplicateByKey(data.topics, (t) => t.id),
+    studyItems: deduplicateByKey(data.studyItems, (i) => i.id),
+    studySessions: deduplicateByKey(data.studySessions, (s) => s.id),
+    contestStates: deduplicateByKey(data.contestStates, (s) => s.contestId)
+  };
+}
 var DataMigrationService = class {
   constructor() {
     this.CURRENT_VERSION = 1;
   }
   /**
    * Migrates data from any previous version to the current version.
-   * 
+   *
    * @param data - The data to migrate (may be from any version)
    * @returns Migrated data at the current schema version
    */
@@ -60,6 +85,7 @@ var DataMigrationService = class {
     if (version < 3) {
       current = this.migrateV2toV3(current);
     }
+    current = deduplicatePluginData(current);
     return {
       ...current,
       schemaVersion: this.CURRENT_VERSION
