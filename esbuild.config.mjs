@@ -1,0 +1,24 @@
+import esbuild from "esbuild";
+import process from "node:process";
+
+const isProduction = process.argv[2] === "production";
+
+const context = await esbuild.context({
+  entryPoints: ["src/main.ts"],
+  bundle: true,
+  external: ["obsidian", "electron", "@codemirror/*"],
+  format: "cjs",
+  target: "es2020",
+  sourcemap: isProduction ? false : "inline",
+  treeShaking: true,
+  outfile: "dist/main.js",
+  logLevel: "info"
+});
+
+if (isProduction) {
+  await context.rebuild();
+  await context.dispose();
+} else {
+  await context.watch();
+}
+
