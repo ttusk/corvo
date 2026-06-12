@@ -261,11 +261,15 @@ export function registerCommands(plugin: Plugin, dataStore: PluginDataStore): vo
     callback: async () => {
       try {
         const snapshot = await getActiveCycleSnapshot.execute();
+        const data = await dataStore.load();
+        const itemMap = new Map(data.studyItems.map((item) => [item.id, item.title]));
         const currentLabel = snapshot.currentSubject?.name ?? "none";
         const nextLabel = snapshot.nextSubject?.name ?? "none";
+        const currentItemLabel = snapshot.currentItemId ? itemMap.get(snapshot.currentItemId) ?? snapshot.currentItemId : "none";
+        const nextItemLabel = snapshot.nextItemId ? itemMap.get(snapshot.nextItemId) ?? snapshot.nextItemId : "none";
 
         new Notice(
-          `Current: ${currentLabel} | Next: ${nextLabel} | Current item: ${snapshot.currentItemId ?? "none"} | Next item: ${snapshot.nextItemId ?? "none"}`
+          `Current: ${currentLabel} | Next: ${nextLabel} | Current item: ${currentItemLabel} | Next item: ${nextItemLabel}`
         );
       } catch (error) {
         new Notice(error instanceof Error ? error.message : "Could not read cycle snapshot.");

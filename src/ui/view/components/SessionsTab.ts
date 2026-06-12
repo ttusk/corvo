@@ -70,6 +70,7 @@ export class SessionsTab {
 
     // Cycle context
     const snapshot = await this.getActiveCycleSnapshotUseCase.execute();
+    const itemMap = new Map(data.studyItems.map((item) => [item.id, item.title]));
     const cycleContext = DomHelpers.createElement("div", "corvo-cycle-context");
     const nowLabel = DomHelpers.createElement("span", "corvo-cycle-context-label");
     nowLabel.textContent = "Estudando agora: ";
@@ -79,7 +80,7 @@ export class SessionsTab {
     cycleContext.appendChild(nowValue);
     if (snapshot.currentItemId) {
       const itemLabel = DomHelpers.createElement("span", "corvo-cycle-context-sublabel");
-      itemLabel.textContent = `Item: ${this.formatIdLabel(snapshot.currentItemId)}`;
+      itemLabel.textContent = `Item: ${itemMap.get(snapshot.currentItemId) ?? snapshot.currentItemId}`;
       cycleContext.appendChild(itemLabel);
     }
     const nextInfo = DomHelpers.createElement("span", "corvo-cycle-context-next");
@@ -144,12 +145,6 @@ export class SessionsTab {
     }
 
     container.appendChild(recentSessions);
-  }
-
-  private formatIdLabel(id: string | null): string {
-    if (!id) return "—";
-    const parts = id.split("-");
-    return parts.length > 0 ? parts[parts.length - 1] : id;
   }
 
   private renderDisplayRow(session: StudySession, data: CorvoPluginData): HTMLElement {

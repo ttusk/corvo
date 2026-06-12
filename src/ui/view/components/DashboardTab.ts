@@ -38,6 +38,7 @@ export class DashboardTab {
 
     const snapshot = await this.getActiveCycleSnapshotUseCase.execute();
     const summary = await this.getActiveContestSummaryUseCase.execute();
+    const itemMap = new Map(data.studyItems.map((item) => [item.id, item.title]));
 
     container.appendChild(DomHelpers.createSectionTitle("Dashboard"));
     container.appendChild(
@@ -50,7 +51,7 @@ export class DashboardTab {
       this.renderCycleCard("Matéria atual", snapshot.currentSubject?.name ?? "Não definida", "Próxima", snapshot.nextSubject?.name ?? "—")
     );
     cycleSection.appendChild(
-      this.renderCycleCard("Item atual", this.formatIdLabel(snapshot.currentItemId), "Próximo", this.formatIdLabel(snapshot.nextItemId))
+      this.renderCycleCard("Item atual", itemMap.get(snapshot.currentItemId ?? "") ?? "Não definido", "Próximo", itemMap.get(snapshot.nextItemId ?? "") ?? "—")
     );
     container.appendChild(cycleSection);
 
@@ -96,14 +97,5 @@ export class DashboardTab {
 
     card.append(main, next);
     return card;
-  }
-
-  /**
-   * Formats an ID label for display.
-   */
-  private formatIdLabel(id: string | null): string {
-    if (!id) return "Não definido";
-    const parts = id.split("-");
-    return parts.length > 0 ? parts[parts.length - 1] : id;
   }
 }

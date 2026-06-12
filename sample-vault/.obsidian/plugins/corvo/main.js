@@ -1239,10 +1239,14 @@ function registerCommands(plugin, dataStore) {
     callback: async () => {
       try {
         const snapshot = await getActiveCycleSnapshot.execute();
+        const data = await dataStore.load();
+        const itemMap = new Map(data.studyItems.map((item) => [item.id, item.title]));
         const currentLabel = snapshot.currentSubject?.name ?? "none";
         const nextLabel = snapshot.nextSubject?.name ?? "none";
+        const currentItemLabel = snapshot.currentItemId ? itemMap.get(snapshot.currentItemId) ?? snapshot.currentItemId : "none";
+        const nextItemLabel = snapshot.nextItemId ? itemMap.get(snapshot.nextItemId) ?? snapshot.nextItemId : "none";
         new import_obsidian.Notice(
-          `Current: ${currentLabel} | Next: ${nextLabel} | Current item: ${snapshot.currentItemId ?? "none"} | Next item: ${snapshot.nextItemId ?? "none"}`
+          `Current: ${currentLabel} | Next: ${nextLabel} | Current item: ${currentItemLabel} | Next item: ${nextItemLabel}`
         );
       } catch (error) {
         new import_obsidian.Notice(error instanceof Error ? error.message : "Could not read cycle snapshot.");
@@ -2251,6 +2255,7 @@ var DashboardTab = class {
     }
     const snapshot = await this.getActiveCycleSnapshotUseCase.execute();
     const summary = await this.getActiveContestSummaryUseCase.execute();
+    const itemMap = new Map(data.studyItems.map((item) => [item.id, item.title]));
     container.appendChild(DomHelpers.createSectionTitle("Dashboard"));
     container.appendChild(
       DomHelpers.createParagraph("Vis\xE3o geral do concurso ativo.")
@@ -2260,7 +2265,7 @@ var DashboardTab = class {
       this.renderCycleCard("Mat\xE9ria atual", snapshot.currentSubject?.name ?? "N\xE3o definida", "Pr\xF3xima", snapshot.nextSubject?.name ?? "\u2014")
     );
     cycleSection.appendChild(
-      this.renderCycleCard("Item atual", this.formatIdLabel(snapshot.currentItemId), "Pr\xF3ximo", this.formatIdLabel(snapshot.nextItemId))
+      this.renderCycleCard("Item atual", itemMap.get(snapshot.currentItemId ?? "") ?? "N\xE3o definido", "Pr\xF3ximo", itemMap.get(snapshot.nextItemId ?? "") ?? "\u2014")
     );
     container.appendChild(cycleSection);
     const subjectSummaryCard = DomHelpers.createCard("Resumo por mat\xE9ria");
@@ -2294,14 +2299,6 @@ var DashboardTab = class {
     next.append(nextLabelEl, nextValueEl);
     card.append(main, next);
     return card;
-  }
-  /**
-   * Formats an ID label for display.
-   */
-  formatIdLabel(id) {
-    if (!id) return "N\xE3o definido";
-    const parts = id.split("-");
-    return parts.length > 0 ? parts[parts.length - 1] : id;
   }
 };
 
@@ -2834,6 +2831,7 @@ var SessionsTab = class {
       return;
     }
     const snapshot = await this.getActiveCycleSnapshotUseCase.execute();
+    const itemMap = new Map(data.studyItems.map((item) => [item.id, item.title]));
     const cycleContext = DomHelpers.createElement("div", "corvo-cycle-context");
     const nowLabel = DomHelpers.createElement("span", "corvo-cycle-context-label");
     nowLabel.textContent = "Estudando agora: ";
@@ -2843,7 +2841,7 @@ var SessionsTab = class {
     cycleContext.appendChild(nowValue);
     if (snapshot.currentItemId) {
       const itemLabel = DomHelpers.createElement("span", "corvo-cycle-context-sublabel");
-      itemLabel.textContent = `Item: ${this.formatIdLabel(snapshot.currentItemId)}`;
+      itemLabel.textContent = `Item: ${itemMap.get(snapshot.currentItemId) ?? snapshot.currentItemId}`;
       cycleContext.appendChild(itemLabel);
     }
     const nextInfo = DomHelpers.createElement("span", "corvo-cycle-context-next");
@@ -2895,11 +2893,6 @@ var SessionsTab = class {
       recentSessions.appendChild(tableContainer);
     }
     container.appendChild(recentSessions);
-  }
-  formatIdLabel(id) {
-    if (!id) return "\u2014";
-    const parts = id.split("-");
-    return parts.length > 0 ? parts[parts.length - 1] : id;
   }
   renderDisplayRow(session, data) {
     const tr = DomHelpers.createElement("tr");
@@ -3595,6 +3588,7 @@ var WallTab = class {
       );
     } else {
       const subjectMap = new Map(data.subjects.map((s) => [s.id, s.name]));
+      const itemMap = new Map(data.studyItems.map((item) => [item.id, item.title]));
       card.appendChild(
         DomHelpers.createTable(
           ["Mat\xE9ria", "Peso", "Pontua\xE7\xE3o", "Itens alvo"],
@@ -3602,7 +3596,7 @@ var WallTab = class {
             subjectMap.get(snapshot.subjectId) ?? snapshot.subjectId,
             snapshot.weight !== void 0 ? String(snapshot.weight) : "\u2014",
             snapshot.score !== void 0 ? String(snapshot.score) : "\u2014",
-            snapshot.targetItems?.join(", ") ?? "\u2014"
+            snapshot.targetItems?.map((itemId) => itemMap.get(itemId) ?? itemId).join(", ") ?? "\u2014"
           ])
         )
       );

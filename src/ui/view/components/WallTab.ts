@@ -133,6 +133,7 @@ export class WallTab {
       );
     } else {
       const subjectMap = new Map(data.subjects.map((s) => [s.id, s.name]));
+      const itemMap = new Map(data.studyItems.map((item) => [item.id, item.title]));
       card.appendChild(
         DomHelpers.createTable(
           ["Matéria", "Peso", "Pontuação", "Itens alvo"],
@@ -140,7 +141,7 @@ export class WallTab {
             subjectMap.get(snapshot.subjectId) ?? snapshot.subjectId,
             snapshot.weight !== undefined ? String(snapshot.weight) : "—",
             snapshot.score !== undefined ? String(snapshot.score) : "—",
-            snapshot.targetItems?.join(", ") ?? "—"
+            snapshot.targetItems?.map((itemId) => itemMap.get(itemId) ?? itemId).join(", ") ?? "—"
           ])
         )
       );
