@@ -310,6 +310,16 @@
   border-top: 1px solid var(--corvo-border);
 }
 
+.corvo-editing-row {
+  background: var(--background-modifier-hover);
+}
+
+.corvo-editing-row .corvo-input-compact {
+  width: 80px;
+  min-height: 28px;
+  padding: 4px 6px;
+}
+
 .corvo-table {
   width: 100%;
   border-collapse: collapse;

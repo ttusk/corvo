@@ -4,6 +4,7 @@ import { ListSubjectsForActiveContestUseCase } from "@/application/use-cases/Lis
 import { ReorderSubjectsUseCase } from "@/application/use-cases/ReorderSubjectsUseCase";
 import { SetSubjectActiveStateUseCase } from "@/application/use-cases/SetSubjectActiveStateUseCase";
 import { UpdateSubjectConfigurationUseCase } from "@/application/use-cases/UpdateSubjectConfigurationUseCase";
+import type { Subject } from "@/domain/entities/Subject";
 import { NoActiveContestError } from "@/domain/errors/DomainErrors";
 import type { CorvoPluginData } from "@/domain/types/CorvoPluginData";
 import { DomHelpers } from "@/ui/view/shared/DomHelpers";
@@ -11,6 +12,7 @@ import { Notice } from "obsidian";
 
 /**
  * Cycle tab component - manages subjects, order, status, time and stage.
+ * Inline editing: clicking the pencil icon on a row transforms the row into an editable form.
  */
 export class CycleTab {
   private readonly createSubjectUseCase: CreateSubjectUseCase;
@@ -18,6 +20,7 @@ export class CycleTab {
   private readonly reorderSubjectsUseCase: ReorderSubjectsUseCase;
   private readonly setSubjectActiveStateUseCase: SetSubjectActiveStateUseCase;
   private readonly updateSubjectConfigurationUseCase: UpdateSubjectConfigurationUseCase;
+  private editingSubjectId: string | null = null;
 
   constructor(
     private readonly dataStore: PluginDataStore,
@@ -57,30 +60,136 @@ export class CycleTab {
       return;
     }
 
-    card.appendChild(
-      DomHelpers.createTable(
-        ["Ordem", "Matéria", "Tempo", "Etapa", "Status", "Ações"],
-        subjects.map((subject, index) => [
-          String(subject.order),
-          subject.name,
-          `${subject.plannedStudyMinutes} min`,
-          subject.currentStage ?? "Não definida",
-          subject.isActive ? "Ativa" : "Inativa",
-          this.renderSubjectActionsCell(subjects, subject, index, data.activeContestId)
-        ])
-      )
-    );
+    const tableWrapper = DomHelpers.createElement("div", "corvo-table-wrapper");
+    const table = DomHelpers.createElement("table", "corvo-table");
 
-    subjects.forEach((subject) => {
-      card.appendChild(
-        DomHelpers.createDisclosure(
-          `Editar ${subject.name}`,
-          this.renderSubjectConfigForm(subject)
-        )
-      );
+    // Header
+    const thead = DomHelpers.createElement("thead");
+    const headerRow = DomHelpers.createElement("tr");
+    ["Ordem", "Matéria", "Tempo", "Etapa", "Status", "Ações"].forEach((header) => {
+      const th = DomHelpers.createElement("th");
+      th.textContent = header;
+      headerRow.appendChild(th);
     });
+    thead.appendChild(headerRow);
+    table.appendChild(thead);
+
+    // Body
+    const tbody = DomHelpers.createElement("tbody");
+    subjects.forEach((subject, index) => {
+      const isEditing = this.editingSubjectId === subject.id;
+      const tr = isEditing
+        ? this.renderEditableRow(subject, subjects, index, data.activeContestId)
+        : this.renderDisplayRow(subject, subjects, index, data.activeContestId);
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    tableWrapper.appendChild(table);
+    card.appendChild(tableWrapper);
 
     container.appendChild(card);
+  }
+
+  private renderDisplayRow(
+    subject: Subject,
+    subjects: Subject[],
+    index: number,
+    activeContestId: string | null
+  ): HTMLElement {
+    const tr = DomHelpers.createElement("tr");
+    tr.appendChild(this.createCell(String(subject.order)));
+    tr.appendChild(this.createCell(subject.name));
+    tr.appendChild(this.createCell(`${subject.plannedStudyMinutes} min`));
+    tr.appendChild(this.createCell(subject.currentStage ?? "—"));
+    tr.appendChild(this.createCell(subject.isActive ? "Ativa" : "Inativa"));
+    tr.appendChild(this.createCell(null, this.renderSubjectActionsCell(subject, subjects, index, activeContestId)));
+    return tr;
+  }
+
+  private renderEditableRow(
+    subject: Subject,
+    subjects: Subject[],
+    index: number,
+    activeContestId: string | null
+  ): HTMLElement {
+    const tr = DomHelpers.createElement("tr");
+    tr.className = "corvo-editing-row";
+
+    const minutesInput = DomHelpers.createInput(
+      "number",
+      "Min",
+      String(subject.plannedStudyMinutes)
+    );
+    minutesInput.className = "corvo-input corvo-input-compact";
+
+    const stageInput = DomHelpers.createInput("text", "Etapa", subject.currentStage ?? "");
+    stageInput.className = "corvo-input corvo-input-compact";
+
+    const saveButton = DomHelpers.createIconButton("save", "Salvar", {
+      onClick: async () => {
+        try {
+          await this.updateSubjectConfigurationUseCase.execute({
+            subjectId: subject.id,
+            plannedStudyMinutes: Number(minutesInput.value),
+            currentStage: stageInput.value
+          });
+          this.editingSubjectId = null;
+          await this.onUpdate();
+        } catch (error) {
+          this.notifyError(error, "Não foi possível salvar a configuração.");
+        }
+      }
+    });
+
+    const cancelButton = DomHelpers.createIconButton("cancel", "Cancelar", {
+      onClick: async () => {
+        this.editingSubjectId = null;
+        await this.onUpdate();
+      }
+    });
+
+    const controls = DomHelpers.createElement("div", "corvo-inline-actions corvo-inline-actions-compact");
+    controls.appendChild(saveButton);
+    controls.appendChild(cancelButton);
+
+    // Reorder buttons still available while editing
+    if (index > 0) {
+      controls.appendChild(
+        DomHelpers.createIconButton("up", "Subir", {
+          onClick: async () => {
+            await this.moveSubject(subjects, index, index - 1, activeContestId);
+          }
+        })
+      );
+    }
+    if (index < subjects.length - 1) {
+      controls.appendChild(
+        DomHelpers.createIconButton("down", "Descer", {
+          onClick: async () => {
+            await this.moveSubject(subjects, index, index + 1, activeContestId);
+          }
+        })
+      );
+    }
+
+    tr.appendChild(this.createCell(String(subject.order)));
+    tr.appendChild(this.createCell(subject.name));
+    tr.appendChild(this.createCell(null, minutesInput));
+    tr.appendChild(this.createCell(null, stageInput));
+    tr.appendChild(this.createCell(subject.isActive ? "Ativa" : "Inativa"));
+    tr.appendChild(this.createCell(null, controls));
+    return tr;
+  }
+
+  private createCell(text: string | null, element?: HTMLElement): HTMLElement {
+    const td = DomHelpers.createElement("td");
+    if (text !== null) {
+      td.textContent = text;
+    }
+    if (element) {
+      td.appendChild(element);
+    }
+    return td;
   }
 
   private renderCreateSubjectForm(data: CorvoPluginData): HTMLElement {
@@ -115,8 +224,8 @@ export class CycleTab {
   }
 
   private renderSubjectActionsCell(
-    subjects: Awaited<ReturnType<ListSubjectsForActiveContestUseCase["execute"]>>,
-    subject: Awaited<ReturnType<ListSubjectsForActiveContestUseCase["execute"]>>[number],
+    subject: Subject,
+    subjects: Subject[],
     index: number,
     activeContestId: string | null
   ): HTMLElement {
@@ -162,45 +271,20 @@ export class CycleTab {
       )
     );
 
+    controls.appendChild(
+      DomHelpers.createIconButton("edit", "Editar", {
+        onClick: async () => {
+          this.editingSubjectId = subject.id;
+          await this.onUpdate();
+        }
+      })
+    );
+
     return controls;
   }
 
-  private renderSubjectConfigForm(
-    subject: Awaited<ReturnType<ListSubjectsForActiveContestUseCase["execute"]>>[number]
-  ): HTMLElement {
-    const minutesInput = DomHelpers.createInput(
-      "number",
-      "Minutos",
-      String(subject.plannedStudyMinutes)
-    );
-    const stageInput = DomHelpers.createInput("text", "Etapa", subject.currentStage ?? "");
-
-    const configForm = DomHelpers.createForm(async () => {
-      try {
-        await this.updateSubjectConfigurationUseCase.execute({
-          subjectId: subject.id,
-          plannedStudyMinutes: Number(minutesInput.value),
-          currentStage: stageInput.value
-        });
-        await this.onUpdate();
-      } catch (error) {
-        this.notifyError(error, "Não foi possível atualizar a configuração da matéria.");
-      }
-    });
-
-    configForm.classList.add("corvo-form-compact");
-
-    configForm.append(
-      DomHelpers.createLabel("Minutos", minutesInput),
-      DomHelpers.createLabel("Etapa", stageInput),
-      DomHelpers.createButton("Salvar", { type: "submit", className: "corvo-primary-button" })
-    );
-
-    return configForm;
-  }
-
   private async moveSubject(
-    subjects: Awaited<ReturnType<ListSubjectsForActiveContestUseCase["execute"]>>,
+    subjects: Subject[],
     sourceIndex: number,
     targetIndex: number,
     activeContestId: string | null
