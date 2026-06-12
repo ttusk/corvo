@@ -71,8 +71,8 @@
   "contestStates": [
     {
       "contestId": "tce-sp",
-      "currentSubjectId": "portuguese",
-      "currentItemId": "syntax"
+      "currentSubjectId": "accounting",
+      "currentItemId": "balance"
     },
     {
       "contestId": "sefaz-ba",

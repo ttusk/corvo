@@ -1,6 +1,5 @@
 import type { PluginDataStore } from "@/application/ports/PluginDataStore";
 import { AdvanceCycleUseCase } from "@/application/use-cases/AdvanceCycleUseCase";
-import { GetActiveContestProgressDashboardUseCase } from "@/application/use-cases/GetActiveContestProgressDashboardUseCase";
 import { GetActiveContestSummaryUseCase } from "@/application/use-cases/GetActiveContestSummaryUseCase";
 import { GetActiveCycleSnapshotUseCase } from "@/application/use-cases/GetActiveCycleSnapshotUseCase";
 import { RegisterStudySessionUseCase } from "@/application/use-cases/RegisterStudySessionUseCase";
@@ -16,7 +15,6 @@ export class DashboardTab {
   private readonly advanceCycleUseCase: AdvanceCycleUseCase;
   private readonly getActiveCycleSnapshotUseCase: GetActiveCycleSnapshotUseCase;
   private readonly getActiveContestSummaryUseCase: GetActiveContestSummaryUseCase;
-  private readonly getActiveContestProgressDashboardUseCase: GetActiveContestProgressDashboardUseCase;
   private readonly registerStudySessionUseCase: RegisterStudySessionUseCase;
   private readonly listSubjectsForActiveContestUseCase: ListSubjectsForActiveContestUseCase;
 
@@ -27,7 +25,6 @@ export class DashboardTab {
     this.advanceCycleUseCase = new AdvanceCycleUseCase(dataStore);
     this.getActiveCycleSnapshotUseCase = new GetActiveCycleSnapshotUseCase(dataStore);
     this.getActiveContestSummaryUseCase = new GetActiveContestSummaryUseCase(dataStore);
-    this.getActiveContestProgressDashboardUseCase = new GetActiveContestProgressDashboardUseCase(dataStore);
     this.registerStudySessionUseCase = new RegisterStudySessionUseCase(dataStore);
     this.listSubjectsForActiveContestUseCase = new ListSubjectsForActiveContestUseCase(dataStore);
   }
@@ -51,7 +48,6 @@ export class DashboardTab {
 
     const snapshot = await this.getActiveCycleSnapshotUseCase.execute();
     const summary = await this.getActiveContestSummaryUseCase.execute();
-    const progress = await this.getActiveContestProgressDashboardUseCase.execute();
 
     container.appendChild(DomHelpers.createSectionTitle("Dashboard"));
     container.appendChild(
@@ -103,9 +99,6 @@ export class DashboardTab {
     cycleActions.appendChild(actionRow);
     container.appendChild(cycleActions);
 
-    // Summary grid
-    const summaryList = DomHelpers.createElement("div", "corvo-grid corvo-grid-2");
-
     // Subject summary card
     const subjectSummaryCard = DomHelpers.createCard("Resumo por matéria");
     subjectSummaryCard.appendChild(
@@ -122,32 +115,7 @@ export class DashboardTab {
         ])
       )
     );
-
-    // Progress card
-    const progressCard = DomHelpers.createCard("Progresso");
-    progressCard.appendChild(
-      DomHelpers.createTable(
-        ["Matéria", "PDF", "Questões", "Acerto total"],
-        progress.questionProgressBySubject.map((questionProgress) => {
-          const pdfProgress =
-            progress.pdfProgressBySubject.find(
-              (entry) => entry.subjectId === questionProgress.subjectId
-            )?.totalProgressCount ?? 0;
-
-          return [
-            questionProgress.subjectName,
-            String(pdfProgress),
-            String(questionProgress.totalQuestionCount),
-            questionProgress.totalAccuracy === null
-              ? "-"
-              : `${Math.round(questionProgress.totalAccuracy * 100)}%`
-          ];
-        })
-      )
-    );
-
-    summaryList.append(subjectSummaryCard, progressCard);
-    container.appendChild(summaryList);
+    container.appendChild(subjectSummaryCard);
   }
 
   /**

@@ -2435,75 +2435,6 @@ var CycleTab = class {
   }
 };
 
-// src/application/use-cases/GetActiveContestProgressDashboardUseCase.ts
-var GetActiveContestProgressDashboardUseCase = class {
-  constructor(dataStore) {
-    this.dataStore = dataStore;
-    this.guard = new ActiveContestGuard(dataStore);
-  }
-  async execute() {
-    const activeContestId = await this.guard.requireActiveContest();
-    const data = await this.dataStore.load();
-    const contestSubjects = await this.guard.getActiveContestSubjects();
-    const pdfProgressBySubject = contestSubjects.map((subject) => {
-      const subjectItems = data.studyItems.filter((studyItem) => studyItem.subjectId === subject.id).sort((left, right) => left.order - right.order);
-      const items = subjectItems.map((studyItem) => {
-        const progressCount = data.studySessions.filter(
-          (session) => session.contestId === activeContestId && session.type === "pdf" && session.studyItemId === studyItem.id
-        ).reduce((total, session) => total + (session.pagesOrCount ?? 0), 0);
-        return {
-          studyItemId: studyItem.id,
-          title: studyItem.title,
-          order: studyItem.order,
-          progressCount,
-          weight: studyItem.weight,
-          questionCount: studyItem.questionCount
-        };
-      });
-      return {
-        subjectId: subject.id,
-        subjectName: subject.name,
-        items,
-        totalProgressCount: items.reduce((total, item) => total + item.progressCount, 0)
-      };
-    });
-    const questionProgressBySubject = contestSubjects.map((subject) => {
-      const groupedByDate = /* @__PURE__ */ new Map();
-      data.studySessions.filter(
-        (session) => session.contestId === activeContestId && session.subjectId === subject.id && session.type === "questions"
-      ).forEach((session) => {
-        const date = session.studiedAt.slice(0, 10);
-        const current = groupedByDate.get(date) ?? { questionCount: 0, correctAnswers: 0 };
-        groupedByDate.set(date, {
-          questionCount: current.questionCount + (session.pagesOrCount ?? 0),
-          correctAnswers: current.correctAnswers + (session.correctAnswers ?? 0)
-        });
-      });
-      const points = Array.from(groupedByDate.entries()).sort(([left], [right]) => left.localeCompare(right)).map(([date, point]) => ({
-        date,
-        questionCount: point.questionCount,
-        correctAnswers: point.correctAnswers,
-        accuracy: point.questionCount > 0 ? point.correctAnswers / point.questionCount : null
-      }));
-      const totalQuestionCount = points.reduce((total, point) => total + point.questionCount, 0);
-      const totalCorrectAnswers = points.reduce((total, point) => total + point.correctAnswers, 0);
-      return {
-        subjectId: subject.id,
-        subjectName: subject.name,
-        points,
-        totalQuestionCount,
-        totalCorrectAnswers,
-        totalAccuracy: totalQuestionCount > 0 ? totalCorrectAnswers / totalQuestionCount : null
-      };
-    });
-    return {
-      contestId: activeContestId,
-      pdfProgressBySubject,
-      questionProgressBySubject
-    };
-  }
-};
-
 // src/ui/view/components/DashboardTab.ts
 var import_obsidian5 = require("obsidian");
 var DashboardTab = class {
@@ -2513,7 +2444,6 @@ var DashboardTab = class {
     this.advanceCycleUseCase = new AdvanceCycleUseCase(dataStore);
     this.getActiveCycleSnapshotUseCase = new GetActiveCycleSnapshotUseCase(dataStore);
     this.getActiveContestSummaryUseCase = new GetActiveContestSummaryUseCase(dataStore);
-    this.getActiveContestProgressDashboardUseCase = new GetActiveContestProgressDashboardUseCase(dataStore);
     this.registerStudySessionUseCase = new RegisterStudySessionUseCase(dataStore);
     this.listSubjectsForActiveContestUseCase = new ListSubjectsForActiveContestUseCase(dataStore);
   }
@@ -2534,7 +2464,6 @@ var DashboardTab = class {
     }
     const snapshot = await this.getActiveCycleSnapshotUseCase.execute();
     const summary = await this.getActiveContestSummaryUseCase.execute();
-    const progress = await this.getActiveContestProgressDashboardUseCase.execute();
     container.appendChild(DomHelpers.createSectionTitle("Dashboard"));
     container.appendChild(
       DomHelpers.createParagraph("Vis\xE3o geral do concurso ativo e das pr\xF3ximas a\xE7\xF5es.")
@@ -2580,7 +2509,6 @@ var DashboardTab = class {
     );
     cycleActions.appendChild(actionRow);
     container.appendChild(cycleActions);
-    const summaryList = DomHelpers.createElement("div", "corvo-grid corvo-grid-2");
     const subjectSummaryCard = DomHelpers.createCard("Resumo por mat\xE9ria");
     subjectSummaryCard.appendChild(
       DomHelpers.createTable(
@@ -2594,25 +2522,7 @@ var DashboardTab = class {
         ])
       )
     );
-    const progressCard = DomHelpers.createCard("Progresso");
-    progressCard.appendChild(
-      DomHelpers.createTable(
-        ["Mat\xE9ria", "PDF", "Quest\xF5es", "Acerto total"],
-        progress.questionProgressBySubject.map((questionProgress) => {
-          const pdfProgress = progress.pdfProgressBySubject.find(
-            (entry) => entry.subjectId === questionProgress.subjectId
-          )?.totalProgressCount ?? 0;
-          return [
-            questionProgress.subjectName,
-            String(pdfProgress),
-            String(questionProgress.totalQuestionCount),
-            questionProgress.totalAccuracy === null ? "-" : `${Math.round(questionProgress.totalAccuracy * 100)}%`
-          ];
-        })
-      )
-    );
-    summaryList.append(subjectSummaryCard, progressCard);
-    container.appendChild(summaryList);
+    container.appendChild(subjectSummaryCard);
   }
   /**
    * Formats an ID label for display.
@@ -2689,6 +2599,75 @@ var DeleteStudyItemUseCase = class {
     const item = await this.itemRepository.findById(input.itemId);
     await this.itemRepository.delete(input.itemId);
     return item;
+  }
+};
+
+// src/application/use-cases/GetActiveContestProgressDashboardUseCase.ts
+var GetActiveContestProgressDashboardUseCase = class {
+  constructor(dataStore) {
+    this.dataStore = dataStore;
+    this.guard = new ActiveContestGuard(dataStore);
+  }
+  async execute() {
+    const activeContestId = await this.guard.requireActiveContest();
+    const data = await this.dataStore.load();
+    const contestSubjects = await this.guard.getActiveContestSubjects();
+    const pdfProgressBySubject = contestSubjects.map((subject) => {
+      const subjectItems = data.studyItems.filter((studyItem) => studyItem.subjectId === subject.id).sort((left, right) => left.order - right.order);
+      const items = subjectItems.map((studyItem) => {
+        const progressCount = data.studySessions.filter(
+          (session) => session.contestId === activeContestId && session.type === "pdf" && session.studyItemId === studyItem.id
+        ).reduce((total, session) => total + (session.pagesOrCount ?? 0), 0);
+        return {
+          studyItemId: studyItem.id,
+          title: studyItem.title,
+          order: studyItem.order,
+          progressCount,
+          weight: studyItem.weight,
+          questionCount: studyItem.questionCount
+        };
+      });
+      return {
+        subjectId: subject.id,
+        subjectName: subject.name,
+        items,
+        totalProgressCount: items.reduce((total, item) => total + item.progressCount, 0)
+      };
+    });
+    const questionProgressBySubject = contestSubjects.map((subject) => {
+      const groupedByDate = /* @__PURE__ */ new Map();
+      data.studySessions.filter(
+        (session) => session.contestId === activeContestId && session.subjectId === subject.id && session.type === "questions"
+      ).forEach((session) => {
+        const date = session.studiedAt.slice(0, 10);
+        const current = groupedByDate.get(date) ?? { questionCount: 0, correctAnswers: 0 };
+        groupedByDate.set(date, {
+          questionCount: current.questionCount + (session.pagesOrCount ?? 0),
+          correctAnswers: current.correctAnswers + (session.correctAnswers ?? 0)
+        });
+      });
+      const points = Array.from(groupedByDate.entries()).sort(([left], [right]) => left.localeCompare(right)).map(([date, point]) => ({
+        date,
+        questionCount: point.questionCount,
+        correctAnswers: point.correctAnswers,
+        accuracy: point.questionCount > 0 ? point.correctAnswers / point.questionCount : null
+      }));
+      const totalQuestionCount = points.reduce((total, point) => total + point.questionCount, 0);
+      const totalCorrectAnswers = points.reduce((total, point) => total + point.correctAnswers, 0);
+      return {
+        subjectId: subject.id,
+        subjectName: subject.name,
+        points,
+        totalQuestionCount,
+        totalCorrectAnswers,
+        totalAccuracy: totalQuestionCount > 0 ? totalCorrectAnswers / totalQuestionCount : null
+      };
+    });
+    return {
+      contestId: activeContestId,
+      pdfProgressBySubject,
+      questionProgressBySubject
+    };
   }
 };
 
