@@ -1,7 +1,7 @@
 import { ItemView, type WorkspaceLeaf } from "obsidian";
 
 import type { PluginDataStore } from "@/application/ports/PluginDataStore";
-import type { CorvoPluginData } from "@/domain/types/CorvoPluginData";
+import type { LeifPluginData } from "@/domain/types/LeifPluginData";
 import { ContestsTab } from "@/ui/view/components/ContestsTab";
 import { CycleTab } from "@/ui/view/components/CycleTab";
 import { DashboardTab } from "@/ui/view/components/DashboardTab";
@@ -9,10 +9,10 @@ import { ItemsTab } from "@/ui/view/components/ItemsTab";
 import { SessionsTab } from "@/ui/view/components/SessionsTab";
 import { TopicsTab } from "@/ui/view/components/TopicsTab";
 import { WallTab } from "@/ui/view/components/WallTab";
-import { CORVO_ICON, CORVO_VIEW_TYPE } from "@/ui/view/registerCorvoView";
+import { LEIF_ICON, LEIF_VIEW_TYPE } from "@/ui/view/registerLeifView";
 import { DomHelpers } from "@/ui/view/shared/DomHelpers";
 
-type CorvoTabId =
+type LeifTabId =
   | "dashboard"
   | "contests"
   | "cycle"
@@ -21,12 +21,12 @@ type CorvoTabId =
   | "sessions"
   | "wall";
 
-interface CorvoTabDefinition {
-  id: CorvoTabId;
+interface LeifTabDefinition {
+  id: LeifTabId;
   label: string;
 }
 
-const TABS: CorvoTabDefinition[] = [
+const TABS: LeifTabDefinition[] = [
   { id: "dashboard", label: "Dashboard" },
   { id: "contests", label: "Concursos" },
   { id: "cycle", label: "Ciclo e Matérias" },
@@ -37,18 +37,18 @@ const TABS: CorvoTabDefinition[] = [
 ];
 
 /**
- * Main Corvo view with incremental rendering optimization.
+ * Main Leif view with incremental rendering optimization.
  * Builds the shell structure once and only updates the active tab content on changes.
  */
-export class CorvoView extends ItemView {
-  private activeTab: CorvoTabId = "dashboard";
+export class LeifView extends ItemView {
+  private activeTab: LeifTabId = "dashboard";
   private selectedSubjectId: string | null = null;
 
   private shell?: HTMLElement;
   private headerActions?: HTMLElement;
   private tabBar?: HTMLElement;
   private activeTabContainer?: HTMLElement;
-  private tabButtons: Map<CorvoTabId, HTMLElement> = new Map();
+  private tabButtons: Map<LeifTabId, HTMLElement> = new Map();
 
   private readonly dashboardTab: DashboardTab;
   private readonly contestsTab: ContestsTab;
@@ -73,15 +73,15 @@ export class CorvoView extends ItemView {
   }
 
   getViewType(): string {
-    return CORVO_VIEW_TYPE;
+    return LEIF_VIEW_TYPE;
   }
 
   getDisplayText(): string {
-    return "Corvo";
+    return "Leif";
   }
 
   override getIcon(): string {
-    return CORVO_ICON;
+    return LEIF_ICON;
   }
 
   override async onOpen(): Promise<void> {
@@ -118,25 +118,25 @@ export class CorvoView extends ItemView {
    */
   private buildShell(): void {
     this.contentEl.innerHTML = "";
-    this.contentEl.className = "corvo-view";
+    this.contentEl.className = "leif-view";
 
-    this.shell = DomHelpers.createElement("div", "corvo-shell");
+    this.shell = DomHelpers.createElement("div", "leif-shell");
 
-    const header = DomHelpers.createElement("header", "corvo-header");
-    const titleGroup = DomHelpers.createElement("div", "corvo-title-group");
+    const header = DomHelpers.createElement("header", "leif-header");
+    const titleGroup = DomHelpers.createElement("div", "leif-title-group");
     titleGroup.append(
-      DomHelpers.createHeading("Corvo"),
+      DomHelpers.createHeading("Leif"),
       DomHelpers.createParagraph("Planejamento e acompanhamento dos estudos.")
     );
 
-    this.headerActions = DomHelpers.createElement("div", "corvo-header-actions");
+    this.headerActions = DomHelpers.createElement("div", "leif-header-actions");
     header.append(titleGroup, this.headerActions);
 
-    this.tabBar = DomHelpers.createElement("nav", "corvo-tab-bar");
+    this.tabBar = DomHelpers.createElement("nav", "leif-tab-bar");
     TABS.forEach((tab) => {
       const button = DomHelpers.createButton(tab.label, {
         dataset: { tab: tab.id },
-        className: "corvo-tab-button",
+        className: "leif-tab-button",
         onClick: async () => {
           this.activeTab = tab.id;
           this.updateTabButtonStyles();
@@ -147,7 +147,7 @@ export class CorvoView extends ItemView {
       this.tabBar!.appendChild(button);
     });
 
-    this.activeTabContainer = DomHelpers.createElement("section", "corvo-body");
+    this.activeTabContainer = DomHelpers.createElement("section", "leif-body");
 
     this.shell.append(header, this.tabBar, this.activeTabContainer);
     this.contentEl.appendChild(this.shell);
@@ -156,7 +156,7 @@ export class CorvoView extends ItemView {
   /**
    * Updates the header actions with current data.
    */
-  private async updateHeader(data: CorvoPluginData): Promise<void> {
+  private async updateHeader(data: LeifPluginData): Promise<void> {
     if (!this.headerActions) return;
 
     const activeContest = data.contests.find((contest) => contest.id === data.activeContestId);
@@ -169,7 +169,7 @@ export class CorvoView extends ItemView {
   /**
    * Updates the active tab button styles and renders the active tab content.
    */
-  private async updateActiveTab(data: CorvoPluginData): Promise<void> {
+  private async updateActiveTab(data: LeifPluginData): Promise<void> {
     if (!this.activeTabContainer) return;
 
     this.updateTabButtonStyles();
@@ -183,12 +183,12 @@ export class CorvoView extends ItemView {
   private updateTabButtonStyles(): void {
     this.tabButtons.forEach((button, tabId) => {
       button.className = this.activeTab === tabId
-        ? "corvo-tab-button is-active"
-        : "corvo-tab-button";
+        ? "leif-tab-button is-active"
+        : "leif-tab-button";
     });
   }
 
-  private async renderActiveTab(container: HTMLElement, data: CorvoPluginData): Promise<void> {
+  private async renderActiveTab(container: HTMLElement, data: LeifPluginData): Promise<void> {
     switch (this.activeTab) {
       case "dashboard":
         await this.dashboardTab.render(container, data);
@@ -214,7 +214,7 @@ export class CorvoView extends ItemView {
     }
   }
 
-  private getSelectedSubject(data: CorvoPluginData): { id: string; name: string } | null {
+  private getSelectedSubject(data: LeifPluginData): { id: string; name: string } | null {
     const subjects = data.subjects
       .filter((subject) => subject.contestId === data.activeContestId)
       .sort((left, right) => left.order - right.order);
@@ -226,7 +226,7 @@ export class CorvoView extends ItemView {
     return subjects.find((subject) => subject.id === this.selectedSubjectId) ?? subjects[0];
   }
 
-  private ensureSelectedSubject(data: CorvoPluginData): void {
+  private ensureSelectedSubject(data: LeifPluginData): void {
     const selectedSubject = this.getSelectedSubject(data);
     this.selectedSubjectId = selectedSubject?.id ?? null;
   }

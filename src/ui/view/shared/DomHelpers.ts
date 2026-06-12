@@ -26,7 +26,7 @@ export class DomHelpers {
    * @param className - CSS class for the icon container
    * @returns HTMLElement containing the icon
    */
-  static createIcon(iconKey: string, className = "corvo-icon"): HTMLElement {
+  static createIcon(iconKey: string, className = "leif-icon"): HTMLElement {
     const container = this.createElement("span", className);
     const iconName = ICON_NAMES[iconKey as keyof typeof ICON_NAMES] || iconKey;
 
@@ -46,11 +46,11 @@ export class DomHelpers {
    * Creates text with an optional icon.
    */
   static createTextWithIcon(text: string, icon?: string): HTMLElement {
-    const wrapper = this.createElement("span", "corvo-text-with-icon");
+    const wrapper = this.createElement("span", "leif-text-with-icon");
     if (icon) {
       wrapper.appendChild(this.createIcon(icon));
     }
-    const label = this.createElement("span", "corvo-text-label");
+    const label = this.createElement("span", "leif-text-label");
     label.textContent = text;
     wrapper.appendChild(label);
     return wrapper;
@@ -60,7 +60,7 @@ export class DomHelpers {
    * Creates an H1 heading with optional icon.
    */
   static createHeading(text: string, icon?: string): HTMLElement {
-    const heading = this.createElement("h1", "corvo-title");
+    const heading = this.createElement("h1", "leif-title");
     heading.appendChild(this.createTextWithIcon(text, icon));
     return heading;
   }
@@ -69,7 +69,7 @@ export class DomHelpers {
    * Creates an H2 section title with optional icon.
    */
   static createSectionTitle(text: string, icon?: string): HTMLElement {
-    const heading = this.createElement("h2", "corvo-section-title");
+    const heading = this.createElement("h2", "leif-section-title");
     heading.appendChild(this.createTextWithIcon(text, icon));
     return heading;
   }
@@ -78,7 +78,7 @@ export class DomHelpers {
    * Creates an H3 section subtitle with optional icon.
    */
   static createSectionSubtitle(text: string, icon?: string): HTMLElement {
-    const heading = this.createElement("h3", "corvo-section-subtitle");
+    const heading = this.createElement("h3", "leif-section-subtitle");
     heading.appendChild(this.createTextWithIcon(text, icon));
     return heading;
   }
@@ -87,7 +87,7 @@ export class DomHelpers {
    * Creates a paragraph element.
    */
   static createParagraph(text: string): HTMLElement {
-    const paragraph = this.createElement("p", "corvo-paragraph");
+    const paragraph = this.createElement("p", "leif-paragraph");
     paragraph.textContent = text;
     return paragraph;
   }
@@ -105,7 +105,7 @@ export class DomHelpers {
    * Creates a badge with optional icon.
    */
   static createBadge(text: string, icon?: string): HTMLElement {
-    const badge = this.createElement("span", "corvo-badge");
+    const badge = this.createElement("span", "leif-badge");
     badge.appendChild(this.createTextWithIcon(text, icon));
     return badge;
   }
@@ -114,7 +114,7 @@ export class DomHelpers {
    * Creates a card section with title and optional icon.
    */
   static createCard(title: string, icon?: string): HTMLElement {
-    const card = this.createElement("section", "corvo-card");
+    const card = this.createElement("section", "leif-card");
     card.appendChild(this.createSectionSubtitle(title, icon));
     return card;
   }
@@ -123,7 +123,7 @@ export class DomHelpers {
    * Creates an empty state message.
    */
   static createEmptyState(title: string, description: string): HTMLElement {
-    const wrapper = this.createElement("section", "corvo-empty-state corvo-card");
+    const wrapper = this.createElement("section", "leif-empty-state leif-card");
     wrapper.append(this.createStrong(title), this.createParagraph(description));
     return wrapper;
   }
@@ -136,7 +136,7 @@ export class DomHelpers {
     input.type = type;
     input.placeholder = placeholder;
     input.value = value;
-    input.className = "corvo-input";
+    input.className = "leif-input";
     return input;
   }
 
@@ -150,7 +150,7 @@ export class DomHelpers {
     selectedValue?: string
   ): HTMLSelectElement {
     const select = document.createElement("select");
-    select.className = "corvo-select";
+    select.className = "leif-select";
 
     options.forEach(([value, label]) => {
       const option = document.createElement("option");
@@ -172,7 +172,7 @@ export class DomHelpers {
     const textarea = document.createElement("textarea");
     textarea.placeholder = placeholder;
     textarea.value = value;
-    textarea.className = "corvo-textarea";
+    textarea.className = "leif-textarea";
     return textarea;
   }
 
@@ -180,8 +180,8 @@ export class DomHelpers {
    * Creates a label for a form control.
    */
   static createLabel(text: string, control: HTMLElement): HTMLElement {
-    const label = this.createElement("label", "corvo-label");
-    const span = this.createElement("span", "corvo-label-text");
+    const label = this.createElement("label", "leif-label");
+    const span = this.createElement("span", "leif-label-text");
     span.textContent = text;
     label.append(span, control);
     return label;
@@ -191,8 +191,8 @@ export class DomHelpers {
    * Creates a disclosure (details/summary) element.
    */
   static createDisclosure(title: string, content: HTMLElement, icon?: string): HTMLElement {
-    const details = this.createElement("details", "corvo-disclosure");
-    const summary = this.createElement("summary", "corvo-disclosure-summary");
+    const details = this.createElement("details", "leif-disclosure");
+    const summary = this.createElement("summary", "leif-disclosure-summary");
     summary.appendChild(this.createTextWithIcon(title, icon));
     details.append(summary, content);
     return details;
@@ -202,10 +202,10 @@ export class DomHelpers {
    * Creates a key-value row display.
    */
   static createKeyValueRow(label: string, value: string): HTMLElement {
-    const row = this.createElement("div", "corvo-key-value");
-    const labelEl = this.createElement("span", "corvo-key-label");
+    const row = this.createElement("div", "leif-key-value");
+    const labelEl = this.createElement("span", "leif-key-label");
     labelEl.textContent = label;
-    const valueEl = this.createElement("span", "corvo-key-value-text");
+    const valueEl = this.createElement("span", "leif-key-value-text");
     valueEl.textContent = value;
     row.append(labelEl, valueEl);
     return row;
@@ -217,8 +217,8 @@ export class DomHelpers {
    * @param rows - Array of row data (each row is an array of cell content)
    */
   static createTable(headers: string[], rows: Array<Array<string | HTMLElement>>): HTMLElement {
-    const wrapper = this.createElement("div", "corvo-table-wrapper");
-    const table = this.createElement("table", "corvo-table");
+    const wrapper = this.createElement("div", "leif-table-wrapper");
+    const table = this.createElement("table", "leif-table");
 
     // Create header
     const thead = this.createElement("thead");
@@ -267,7 +267,7 @@ export class DomHelpers {
   ): HTMLButtonElement {
     const button = document.createElement("button");
     button.type = options.type || "button";
-    button.className = options.className || "corvo-button";
+    button.className = options.className || "leif-button";
 
     if (options.icon) {
       button.appendChild(this.createTextWithIcon(text, options.icon));
@@ -306,8 +306,8 @@ export class DomHelpers {
   ): HTMLButtonElement {
     const button = document.createElement("button");
     button.type = "button";
-    button.className = options.className || "corvo-icon-button";
-    button.appendChild(this.createIcon(icon, "corvo-icon-button-icon"));
+    button.className = options.className || "leif-icon-button";
+    button.appendChild(this.createIcon(icon, "leif-icon-button-icon"));
 
     if (options.dataset) {
       Object.entries(options.dataset).forEach(([key, value]) => {
@@ -332,7 +332,7 @@ export class DomHelpers {
    * Creates a button group container.
    */
   static createButtonGroup(): HTMLElement {
-    return this.createElement("div", "corvo-button-group");
+    return this.createElement("div", "leif-button-group");
   }
 
   /**
@@ -340,7 +340,7 @@ export class DomHelpers {
    */
   static createForm(onSubmit?: (event: Event) => void | Promise<void>): HTMLFormElement {
     const form = document.createElement("form");
-    form.className = "corvo-form";
+    form.className = "leif-form";
     if (onSubmit) {
       form.addEventListener("submit", (event) => {
         event.preventDefault();
@@ -378,7 +378,7 @@ export class DomHelpers {
    */
   static createCompactInput(type: string, placeholder: string, value = ""): HTMLInputElement {
     const input = this.createInput(type, placeholder, value);
-    input.className = "corvo-input corvo-input-compact";
+    input.className = "leif-input leif-input-compact";
     return input;
   }
 
@@ -390,8 +390,8 @@ export class DomHelpers {
     container: HTMLElement;
     tbody: HTMLElement;
   } {
-    const container = this.createElement("div", "corvo-table-wrapper");
-    const table = this.createElement("table", "corvo-table");
+    const container = this.createElement("div", "leif-table-wrapper");
+    const table = this.createElement("table", "leif-table");
 
     const thead = this.createElement("thead");
     const headerRow = this.createElement("tr");
@@ -417,7 +417,7 @@ export class DomHelpers {
     onEdit: () => void | Promise<void>,
     onDelete: () => void | Promise<void>
   ): HTMLElement {
-    const actions = this.createElement("div", "corvo-inline-actions corvo-inline-actions-compact");
+    const actions = this.createElement("div", "leif-inline-actions leif-inline-actions-compact");
     actions.appendChild(
       this.createIconButton("edit", "Editar", { onClick: onEdit })
     );
@@ -431,7 +431,7 @@ export class DomHelpers {
    * Creates a form row for organizing form elements.
    */
   static createFormRow(): HTMLElement {
-    return this.createElement("div", "corvo-form-row");
+    return this.createElement("div", "leif-form-row");
   }
 
   /**
@@ -456,21 +456,21 @@ export class DomHelpers {
     onSubmit: (event: Event) => void | Promise<void>,
     onCancel: () => void | Promise<void>
   ): HTMLElement {
-    const card = this.createElement("section", "corvo-card corvo-create-form");
+    const card = this.createElement("section", "leif-card leif-create-form");
     card.appendChild(this.createSectionSubtitle(title, "add"));
 
     const form = this.createForm(onSubmit);
-    const actions = this.createElement("div", "corvo-form-actions");
+    const actions = this.createElement("div", "leif-form-actions");
     actions.appendChild(
       this.createButton("Cancelar", {
-        className: "corvo-button",
+        className: "leif-button",
         onClick: () => onCancel()
       })
     );
     actions.appendChild(
       this.createButton("Criar", {
         type: "submit",
-        className: "corvo-primary-button"
+        className: "leif-primary-button"
       })
     );
 
@@ -485,5 +485,104 @@ export class DomHelpers {
    */
   static notifyError(error: unknown, fallbackMessage: string): void {
     new Notice(error instanceof Error ? error.message : fallbackMessage);
+  }
+
+  /**
+   * Creates a modal overlay with a centered card.
+   * Returns { open, close } functions.
+   */
+  static createModal(options: {
+    title: string;
+    content: HTMLElement;
+    onSubmit: () => void | Promise<void>;
+    onCancel?: () => void;
+    submitLabel?: string;
+  }): { open: () => void; close: () => void } {
+    const overlay = this.createElement("div", "leif-modal-overlay");
+    const card = this.createElement("div", "leif-modal-card");
+
+    const header = this.createElement("div", "leif-modal-header");
+    const title = this.createElement("h3", "leif-modal-title");
+    title.textContent = options.title;
+    const closeButton = this.createIconButton("x", "Fechar", {
+      onClick: () => close()
+    });
+    header.appendChild(title);
+    header.appendChild(closeButton);
+
+    const body = this.createElement("div", "leif-modal-body");
+    body.appendChild(options.content);
+
+    const footer = this.createElement("div", "leif-modal-footer");
+    const cancelButton = this.createButton("Cancelar", {
+      className: "leif-button",
+      onClick: () => close()
+    });
+    const submitButton = this.createButton(options.submitLabel ?? "Criar", {
+      className: "leif-primary-button",
+      onClick: () => options.onSubmit()
+    });
+    footer.appendChild(cancelButton);
+    footer.appendChild(submitButton);
+
+    card.append(header, body, footer);
+    overlay.appendChild(card);
+
+    const open = (): void => {
+      document.body.appendChild(overlay);
+    };
+
+    const close = (): void => {
+      if (overlay.parentNode) {
+        overlay.parentNode.removeChild(overlay);
+      }
+      options.onCancel?.();
+    };
+
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) {
+        close();
+      }
+    });
+
+    return { open, close };
+  }
+
+  /**
+   * Creates a visual progress bar with a fill and a label.
+   * @param readed - Pages readed
+   * @param total - Total pages (optional)
+   * @returns Progress container element
+   */
+  static createProgressBar(readed: number, total?: number): HTMLElement {
+    const container = this.createElement("div", "leif-progress-bar-container");
+
+    const bar = this.createElement("div", "leif-progress-bar");
+    const fill = this.createElement("div", "leif-progress-fill");
+
+    if (total !== undefined && total > 0) {
+      const percentage = Math.min(100, Math.round((readed / total) * 100));
+      fill.style.width = `${percentage}%`;
+
+      if (readed >= total) {
+        fill.classList.add("is-complete");
+      }
+
+      const label = this.createElement("div", "leif-progress-label");
+      const text = this.createElement("span", "leif-progress-value");
+      text.textContent = `${readed}/${total} (${percentage}%)`;
+      label.appendChild(text);
+      container.appendChild(bar);
+      container.appendChild(label);
+    } else {
+      const label = this.createElement("div", "leif-progress-label");
+      const value = this.createElement("span", "leif-progress-value");
+      value.textContent = `${readed} lido${readed === 1 ? "" : "s"}`;
+      label.appendChild(value);
+      container.appendChild(label);
+    }
+
+    bar.appendChild(fill);
+    return container;
   }
 }

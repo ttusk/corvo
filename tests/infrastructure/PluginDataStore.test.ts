@@ -1,21 +1,21 @@
 import { describe, expect, it } from "vitest";
 
 import type { PersistentStorageAdapter } from "@/application/ports/PersistentStorageAdapter";
-import { createDefaultCorvoPluginData, type CorvoPluginData } from "@/domain/types/CorvoPluginData";
+import { createDefaultLeifPluginData, type LeifPluginData } from "@/domain/types/LeifPluginData";
 import { PluginDataStore } from "@/infrastructure/persistence/PluginDataStore";
 
-class InMemoryStorageAdapter implements PersistentStorageAdapter<CorvoPluginData> {
-  private data: CorvoPluginData | null;
+class InMemoryStorageAdapter implements PersistentStorageAdapter<LeifPluginData> {
+  private data: LeifPluginData | null;
 
-  constructor(initialData: CorvoPluginData | null = null) {
+  constructor(initialData: LeifPluginData | null = null) {
     this.data = initialData;
   }
 
-  async load(): Promise<CorvoPluginData | null> {
+  async load(): Promise<LeifPluginData | null> {
     return this.data;
   }
 
-  async save(data: CorvoPluginData): Promise<void> {
+  async save(data: LeifPluginData): Promise<void> {
     this.data = data;
   }
 }
@@ -24,14 +24,14 @@ describe("PluginDataStore", () => {
   it("loads default data when there is no persisted state", async () => {
     const store = new PluginDataStore(new InMemoryStorageAdapter());
 
-    await expect(store.load()).resolves.toEqual(createDefaultCorvoPluginData());
+    await expect(store.load()).resolves.toEqual(createDefaultLeifPluginData());
   });
 
   it("persists and reloads contests and cycle order", async () => {
     const adapter = new InMemoryStorageAdapter();
     const store = new PluginDataStore(adapter);
-    const initialData: CorvoPluginData = {
-      ...createDefaultCorvoPluginData(),
+    const initialData: LeifPluginData = {
+      ...createDefaultLeifPluginData(),
       activeContestId: "contest-1",
       contests: [
         {

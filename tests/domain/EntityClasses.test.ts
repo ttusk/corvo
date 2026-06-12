@@ -54,6 +54,15 @@ describe("Entity Classes", () => {
     it("throws when weight is negative", () => {
       expect(() => new StudyItem("i-1", "s-1", "Syntax", 1, -1)).toThrow(ValidationError);
     });
+
+    it("accepts an optional totalPages", () => {
+      const item = new StudyItem("i-1", "s-1", "Syntax", 1, 1, 0, [], 100);
+      expect(item.totalPages).toBe(100);
+    });
+
+    it("throws when totalPages is negative", () => {
+      expect(() => new StudyItem("i-1", "s-1", "Syntax", 1, 1, 0, [], -1)).toThrow(ValidationError);
+    });
   });
 
   describe("Topic", () => {

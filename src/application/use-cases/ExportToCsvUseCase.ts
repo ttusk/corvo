@@ -1,6 +1,6 @@
 import type { PluginDataStore } from "@/application/ports/PluginDataStore";
 import { CsvExportService } from "@/domain/services/CsvExportService";
-import type { CorvoPluginData } from "@/domain/types/CorvoPluginData";
+import type { LeifPluginData } from "@/domain/types/LeifPluginData";
 
 export type ExportEntityType = "sessions" | "items" | "topics" | "subjects" | "contests";
 
@@ -34,7 +34,7 @@ export class ExportToCsvUseCase {
     }
   }
 
-  private exportSessions(data: CorvoPluginData, contestId: string | null): void {
+  private exportSessions(data: LeifPluginData, contestId: string | null): void {
     const sessions = data.studySessions
       .filter((s) => (contestId ? s.contestId === contestId : true))
       .map((s) => {
@@ -58,7 +58,7 @@ export class ExportToCsvUseCase {
     CsvExportService.download(csv, `sessoes-${contestId ?? "todos"}`);
   }
 
-  private exportItems(data: CorvoPluginData, subjectId?: string): void {
+  private exportItems(data: LeifPluginData, subjectId?: string): void {
     const items = data.studyItems
       .filter((i) => (subjectId ? i.subjectId === subjectId : true))
       .map((i) => {
@@ -78,7 +78,7 @@ export class ExportToCsvUseCase {
     CsvExportService.download(csv, `itens-${subjectId ?? "todos"}`);
   }
 
-  private exportTopics(data: CorvoPluginData, subjectId?: string): void {
+  private exportTopics(data: LeifPluginData, subjectId?: string): void {
     const topics = data.topics
       .filter((t) => (subjectId ? t.subjectId === subjectId : true))
       .map((t) => {
@@ -90,8 +90,7 @@ export class ExportToCsvUseCase {
           Assunto: t.name,
           Caderno: t.questionNotebook?.name ?? "",
           Resolvidas: t.questionNotebook?.solvedQuestions ?? 0,
-          Acertos: t.questionNotebook?.correctAnswers ?? 0,
-          Referências: t.resourceReferences.length
+          Acertos: t.questionNotebook?.correctAnswers ?? 0
         };
       });
 
@@ -99,7 +98,7 @@ export class ExportToCsvUseCase {
     CsvExportService.download(csv, `assuntos-${subjectId ?? "todos"}`);
   }
 
-  private exportSubjects(data: CorvoPluginData, contestId: string | null): void {
+  private exportSubjects(data: LeifPluginData, contestId: string | null): void {
     const subjects = data.subjects
       .filter((s) => (contestId ? s.contestId === contestId : true))
       .map((s) => ({
@@ -116,7 +115,7 @@ export class ExportToCsvUseCase {
     CsvExportService.download(csv, `materias-${contestId ?? "todos"}`);
   }
 
-  private exportContests(data: CorvoPluginData): void {
+  private exportContests(data: LeifPluginData): void {
     const contests = data.contests.map((c) => ({
       ID: c.id,
       Nome: c.name,

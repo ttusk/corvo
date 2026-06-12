@@ -6,27 +6,27 @@ import { CreateSubjectUseCase } from "@/application/use-cases/CreateSubjectUseCa
 import { ListSubjectsForActiveContestUseCase } from "@/application/use-cases/ListSubjectsForActiveContestUseCase";
 import { ReorderSubjectsUseCase } from "@/application/use-cases/ReorderSubjectsUseCase";
 import { UpdateSubjectConfigurationUseCase } from "@/application/use-cases/UpdateSubjectConfigurationUseCase";
-import { createDefaultCorvoPluginData, type CorvoPluginData } from "@/domain/types/CorvoPluginData";
+import { createDefaultLeifPluginData, type LeifPluginData } from "@/domain/types/LeifPluginData";
 import { PluginDataStore } from "@/infrastructure/persistence/PluginDataStore";
 
-class InMemoryStorageAdapter implements PersistentStorageAdapter<CorvoPluginData> {
-  private data: CorvoPluginData | null;
+class InMemoryStorageAdapter implements PersistentStorageAdapter<LeifPluginData> {
+  private data: LeifPluginData | null;
 
-  constructor(initialData: CorvoPluginData | null = null) {
+  constructor(initialData: LeifPluginData | null = null) {
     this.data = initialData;
   }
 
-  async load(): Promise<CorvoPluginData | null> {
+  async load(): Promise<LeifPluginData | null> {
     return this.data;
   }
 
-  async save(data: CorvoPluginData): Promise<void> {
+  async save(data: LeifPluginData): Promise<void> {
     this.data = data;
   }
 }
 
 function createStore(): PluginDataStore {
-  return new PluginDataStore(new InMemoryStorageAdapter(createDefaultCorvoPluginData()));
+  return new PluginDataStore(new InMemoryStorageAdapter(createDefaultLeifPluginData()));
 }
 
 describe("Subject configuration", () => {

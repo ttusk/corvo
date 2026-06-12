@@ -5,8 +5,9 @@ import { CreateStudyItemUseCase } from "@/application/use-cases/CreateStudyItemU
 import { DeleteStudyItemUseCase } from "@/application/use-cases/DeleteStudyItemUseCase";
 import { GetActiveContestProgressDashboardUseCase } from "@/application/use-cases/GetActiveContestProgressDashboardUseCase";
 import { UpdateStudyItemUseCase } from "@/application/use-cases/UpdateStudyItemUseCase";
+import type { PdfItemProgress } from "@/application/use-cases/GetActiveContestProgressDashboardUseCase";
 import type { StudyItem } from "@/domain/entities/StudyItem";
-import type { CorvoPluginData } from "@/domain/types/CorvoPluginData";
+import type { LeifPluginData } from "@/domain/types/LeifPluginData";
 import { DomHelpers } from "@/ui/view/shared/DomHelpers";
 
 /**
@@ -23,7 +24,6 @@ export class ItemsTab {
   private selectedSubjectId: string | null = null;
   private editingItemId: string | null = null;
   private expandedItemId: string | null = null;
-  private isCreatingNew = false;
 
   constructor(
     private readonly dataStore: PluginDataStore,
@@ -36,15 +36,12 @@ export class ItemsTab {
     this.updateStudyItemUseCase = new UpdateStudyItemUseCase(dataStore);
   }
 
-  async render(container: HTMLElement, data: CorvoPluginData): Promise<void> {
-    const header = DomHelpers.createElement("div", "corvo-section-header");
+  async render(container: HTMLElement, data: LeifPluginData): Promise<void> {
+    const header = DomHelpers.createElement("div", "leif-section-header");
     header.appendChild(DomHelpers.createSectionTitle("Itens e PDFs"));
     header.appendChild(
       DomHelpers.createIconButton("add", "Novo item", {
-        onClick: async () => {
-          this.isCreatingNew = true;
-          await this.onUpdate();
-        }
+        onClick: () => this.openCreateItemModal(this.getSelectedSubject(data)?.id ?? "")
       })
     );
     container.appendChild(header);
@@ -61,10 +58,6 @@ export class ItemsTab {
     }
 
     container.appendChild(this.renderSubjectPicker(data));
-
-    if (this.isCreatingNew) {
-      container.appendChild(this.renderCreateItemForm(subject.id));
-    }
 
     const progress = await this.getActiveContestProgressDashboardUseCase.execute();
     const subjectProgress = progress.pdfProgressBySubject.find(
@@ -88,7 +81,7 @@ export class ItemsTab {
       "Item",
       "Peso",
       "Questões",
-      "PDF",
+      "Páginas",
       "Ações"
     ]);
 
@@ -116,26 +109,27 @@ export class ItemsTab {
 
   private renderDisplayRow(
     item: StudyItem,
-    itemProgress: { progressCount: number } | undefined,
-    data: CorvoPluginData
+    itemProgress: PdfItemProgress | undefined,
+    data: LeifPluginData
   ): HTMLElement {
     const tr = DomHelpers.createElement("tr");
+    tr.dataset.itemId = item.id;
     const refs = item.resourceReferences ?? [];
 
     tr.appendChild(DomHelpers.createCell(String(item.order)));
     tr.appendChild(DomHelpers.createCell(item.title));
     tr.appendChild(DomHelpers.createCell(String(item.weight ?? 0)));
     tr.appendChild(DomHelpers.createCell(String(item.questionCount ?? 0)));
-    tr.appendChild(DomHelpers.createCell(String(itemProgress?.progressCount ?? 0)));
+    tr.appendChild(DomHelpers.createCell(null, this.renderPagesCell(item, itemProgress)));
 
-    const actions = DomHelpers.createElement("div", "corvo-inline-actions corvo-inline-actions-compact");
+    const actions = DomHelpers.createElement("div", "leif-inline-actions leif-inline-actions-compact");
     const hasRefs = refs.length > 0;
     actions.appendChild(
       DomHelpers.createIconButton(
         this.expandedItemId === item.id ? "collapse" : "expand",
         this.expandedItemId === item.id ? "Recolher" : "Expandir",
         {
-          className: `corvo-icon-button ${hasRefs ? "" : "corvo-expand-button"}`,
+          className: `leif-icon-button ${hasRefs ? "" : "leif-expand-button"}`,
           onClick: async () => {
             this.expandedItemId = this.expandedItemId === item.id ? null : item.id;
             await this.onUpdate();
@@ -175,22 +169,28 @@ export class ItemsTab {
 
   private renderEditableRow(
     item: StudyItem,
-    itemProgress: { progressCount: number } | undefined,
-    data: CorvoPluginData
+    itemProgress: PdfItemProgress | undefined,
+    data: LeifPluginData
   ): HTMLElement {
     const tr = DomHelpers.createElement("tr");
-    tr.className = "corvo-editing-row";
+    tr.className = "leif-editing-row";
+    tr.dataset.itemId = item.id;
 
+    const titleInput = DomHelpers.createCompactInput("text", "Título", item.title);
     const weightInput = DomHelpers.createCompactInput("number", "Peso", String(item.weight ?? 0));
     const questionInput = DomHelpers.createCompactInput("number", "Qts", String(item.questionCount ?? 0));
+    const totalPagesInput = DomHelpers.createCompactInput("number", "Total", String(item.totalPages ?? ""));
 
     const saveButton = DomHelpers.createIconButton("save", "Salvar", {
       onClick: async () => {
         try {
+          const rawPages = totalPagesInput.value.trim();
           await this.updateStudyItemUseCase.execute({
             itemId: item.id,
+            title: titleInput.value,
             weight: Number(weightInput.value),
-            questionCount: Number(questionInput.value)
+            questionCount: Number(questionInput.value),
+            totalPages: rawPages === "" ? undefined : Number(rawPages)
           });
           this.editingItemId = null;
           await this.onUpdate();
@@ -207,15 +207,15 @@ export class ItemsTab {
       }
     });
 
-    const actions = DomHelpers.createElement("div", "corvo-inline-actions corvo-inline-actions-compact");
+    const actions = DomHelpers.createElement("div", "leif-inline-actions leif-inline-actions-compact");
     actions.appendChild(saveButton);
     actions.appendChild(cancelButton);
 
     tr.appendChild(DomHelpers.createCell(String(item.order)));
-    tr.appendChild(DomHelpers.createCell(item.title));
+    tr.appendChild(DomHelpers.createCell(null, titleInput));
     tr.appendChild(DomHelpers.createCell(null, weightInput));
     tr.appendChild(DomHelpers.createCell(null, questionInput));
-    tr.appendChild(DomHelpers.createCell(String(itemProgress?.progressCount ?? 0)));
+    tr.appendChild(DomHelpers.createCell(null, totalPagesInput));
 
     const actionsCell = DomHelpers.createElement("td");
     actionsCell.appendChild(actions);
@@ -224,22 +224,39 @@ export class ItemsTab {
     return tr;
   }
 
-  private renderDetailRow(item: StudyItem, data: CorvoPluginData): HTMLElement {
+  private renderPagesCell(item: StudyItem, progress: PdfItemProgress | undefined): HTMLElement {
+    const cell = DomHelpers.createElement("div", "leif-pages-cell");
+    const readed = progress?.pagesReaded ?? 0;
+    const total = item.totalPages;
+
+    const progressBar = DomHelpers.createProgressBar(readed, total);
+    cell.appendChild(progressBar);
+
+    if (progress?.completed) {
+      const badge = DomHelpers.createElement("span", "leif-pages-completed");
+      badge.textContent = "✓ Concluído";
+      cell.appendChild(badge);
+    }
+
+    return cell;
+  }
+
+  private renderDetailRow(item: StudyItem, data: LeifPluginData): HTMLElement {
     const tr = DomHelpers.createElement("tr");
-    tr.className = "corvo-detail-row";
+    tr.className = "leif-detail-row";
 
     const td = DomHelpers.createElement("td");
     td.colSpan = 6;
 
-    const content = DomHelpers.createElement("div", "corvo-detail-content");
+    const content = DomHelpers.createElement("div", "leif-detail-content");
 
     // Resource references list
     if (item.resourceReferences && item.resourceReferences.length > 0) {
-      const list = DomHelpers.createElement("div", "corvo-detail-list");
+      const list = DomHelpers.createElement("div", "leif-detail-list");
       item.resourceReferences.forEach((ref) => {
-        const row = DomHelpers.createElement("div", "corvo-detail-list-item");
+        const row = DomHelpers.createElement("div", "leif-detail-list-item");
         row.appendChild(
-          DomHelpers.createParagraph(`${ref.type}: ${ref.title}`)
+          DomHelpers.createParagraph(`${this.formatResourceType(ref.type)}: ${ref.title}`)
         );
         if (ref.url) {
           const link = DomHelpers.createElement("a");
@@ -256,10 +273,9 @@ export class ItemsTab {
     // Add resource reference form
     const titleInput = DomHelpers.createInput("text", "Título");
     const typeSelect = DomHelpers.createSelect([
-      ["pdf", "pdf"],
-      ["video", "video"],
-      ["link", "link"],
-      ["question-notebook", "question-notebook"]
+      ["pdf", "PDF"],
+      ["video", "Vídeo"],
+      ["link", "Link"]
     ]);
     const urlInput = DomHelpers.createInput("url", "URL");
 
@@ -270,7 +286,7 @@ export class ItemsTab {
           resourceReference: {
             id: `${item.id}-resource-${Date.now()}`,
             title: titleInput.value,
-            type: typeSelect.value as "pdf" | "video" | "link" | "question-notebook",
+            type: typeSelect.value as "pdf" | "video" | "link",
             url: urlInput.value
           }
         });
@@ -282,7 +298,7 @@ export class ItemsTab {
       }
     });
 
-    form.className = "corvo-detail-form";
+    form.className = "leif-detail-form";
     form.append(
       DomHelpers.createLabel("Título", titleInput),
       DomHelpers.createLabel("Tipo", typeSelect),
@@ -297,48 +313,47 @@ export class ItemsTab {
     return tr;
   }
 
-  private renderCreateItemForm(subjectId: string): HTMLElement {
+  private openCreateItemModal(subjectId: string): void {
     const titleInput = DomHelpers.createInput("text", "Título do item");
     const weightInput = DomHelpers.createInput("number", "Peso", "1");
     const questionCountInput = DomHelpers.createInput("number", "Total de questões", "0");
+    const totalPagesInput = DomHelpers.createInput("number", "Total de páginas (opcional)", "");
 
-    const form = DomHelpers.createInlineForm(
-      "Novo item",
-      async () => {
-        try {
-          await this.createStudyItemUseCase.execute({
-            id: `${subjectId}-item-${Date.now()}`,
-            subjectId,
-            title: titleInput.value,
-            weight: Number(weightInput.value),
-            questionCount: Number(questionCountInput.value)
-          });
-          titleInput.value = "";
-          weightInput.value = "1";
-          questionCountInput.value = "0";
-          this.isCreatingNew = false;
-          await this.onUpdate();
-        } catch (error) {
-          this.notifyError(error, "Não foi possível criar o item.");
-        }
-      },
-      () => {
-        this.isCreatingNew = false;
-        this.onUpdate();
+    const form = DomHelpers.createForm(async () => {
+      try {
+        const rawPages = totalPagesInput.value.trim();
+        await this.createStudyItemUseCase.execute({
+          id: `${subjectId}-item-${Date.now()}`,
+          subjectId,
+          title: titleInput.value,
+          weight: Number(weightInput.value),
+          questionCount: Number(questionCountInput.value),
+          totalPages: rawPages === "" ? undefined : Number(rawPages)
+        });
+        modal.close();
+        await this.onUpdate();
+      } catch (error) {
+        this.notifyError(error, "Não foi possível criar o item.");
       }
-    );
+    });
 
-    const innerForm = form.querySelector("form")!;
-    innerForm.append(
+    form.append(
       DomHelpers.createLabel("Título", titleInput),
       DomHelpers.createLabel("Peso", weightInput),
-      DomHelpers.createLabel("Questões", questionCountInput)
+      DomHelpers.createLabel("Questões", questionCountInput),
+      DomHelpers.createLabel("Páginas", totalPagesInput)
     );
 
-    return form;
+    const modal = DomHelpers.createModal({
+      title: "Novo item",
+      content: form,
+      onSubmit: () => form.requestSubmit()
+    });
+
+    modal.open();
   }
 
-  private renderSubjectPicker(data: CorvoPluginData): HTMLElement {
+  private renderSubjectPicker(data: LeifPluginData): HTMLElement {
     const subjects = data.subjects
       .filter((subject) => subject.contestId === data.activeContestId)
       .sort((left, right) => left.order - right.order);
@@ -352,18 +367,24 @@ export class ItemsTab {
       await this.onUpdate();
     });
 
-    const wrapper = DomHelpers.createElement("div", "corvo-toolbar");
+    const wrapper = DomHelpers.createElement("div", "leif-toolbar");
     wrapper.appendChild(DomHelpers.createLabel("Matéria", select));
     return wrapper;
   }
 
-  private getSelectedSubject(data: CorvoPluginData): { id: string; name: string } | null {
+  private getSelectedSubject(data: LeifPluginData): { id: string; name: string } | null {
     const subjects = data.subjects
       .filter((subject) => subject.contestId === data.activeContestId)
       .sort((left, right) => left.order - right.order);
 
     if (subjects.length === 0) return null;
     return subjects.find((subject) => subject.id === this.selectedSubjectId) ?? subjects[0];
+  }
+
+  private formatResourceType(type: "pdf" | "video" | "link"): string {
+    if (type === "pdf") return "PDF";
+    if (type === "video") return "Vídeo";
+    return "Link";
   }
 
   private notifyError(error: unknown, fallbackMessage: string): void {

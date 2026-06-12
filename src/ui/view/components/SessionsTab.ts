@@ -7,8 +7,10 @@ import { GetActiveCycleSnapshotUseCase } from "@/application/use-cases/GetActive
 import { ListSubjectsForActiveContestUseCase } from "@/application/use-cases/ListSubjectsForActiveContestUseCase";
 import { RegisterStudySessionUseCase } from "@/application/use-cases/RegisterStudySessionUseCase";
 import { UpdateStudySessionUseCase } from "@/application/use-cases/UpdateStudySessionUseCase";
+import { StudySessionType } from "@/domain/entities/StudySession";
 import type { StudySession } from "@/domain/entities/StudySession";
-import type { CorvoPluginData } from "@/domain/types/CorvoPluginData";
+import { ValidationError } from "@/domain/errors/DomainErrors";
+import type { LeifPluginData } from "@/domain/types/LeifPluginData";
 import { DomHelpers } from "@/ui/view/shared/DomHelpers";
 
 /**
@@ -24,7 +26,6 @@ export class SessionsTab {
   private readonly getActiveCycleSnapshotUseCase: GetActiveCycleSnapshotUseCase;
 
   private editingSessionId: string | null = null;
-  private isCreatingNew = false;
 
   constructor(
     private readonly dataStore: PluginDataStore,
@@ -39,15 +40,12 @@ export class SessionsTab {
     this.getActiveCycleSnapshotUseCase = new GetActiveCycleSnapshotUseCase(dataStore);
   }
 
-  async render(container: HTMLElement, data: CorvoPluginData): Promise<void> {
-    const header = DomHelpers.createElement("div", "corvo-section-header");
+  async render(container: HTMLElement, data: LeifPluginData): Promise<void> {
+    const header = DomHelpers.createElement("div", "leif-section-header");
     header.appendChild(DomHelpers.createSectionTitle("Sessões"));
     header.appendChild(
       DomHelpers.createIconButton("add", "Nova sessão", {
-        onClick: async () => {
-          this.isCreatingNew = true;
-          await this.onUpdate();
-        }
+        onClick: () => this.openCreateSessionModal(data)
       })
     );
     container.appendChild(header);
@@ -71,33 +69,41 @@ export class SessionsTab {
     // Cycle context
     const snapshot = await this.getActiveCycleSnapshotUseCase.execute();
     const itemMap = new Map(data.studyItems.map((item) => [item.id, item.title]));
-    const cycleContext = DomHelpers.createElement("div", "corvo-cycle-context");
-    const nowLabel = DomHelpers.createElement("span", "corvo-cycle-context-label");
-    nowLabel.textContent = "Estudando agora: ";
-    const nowValue = DomHelpers.createElement("span", "corvo-cycle-context-value");
-    nowValue.textContent = snapshot.currentSubject?.name ?? "—";
+    const recommendedSubject = snapshot.currentSubject ?? snapshot.nextSubject;
+    const afterRecommendedSubject =
+      snapshot.currentSubject && snapshot.nextSubject?.id !== snapshot.currentSubject.id
+        ? snapshot.nextSubject
+        : null;
+    const recommendedItemId = snapshot.currentItemId ?? snapshot.nextItemId;
+    const cycleContext = DomHelpers.createElement("div", "leif-cycle-context");
+    const nowLabel = DomHelpers.createElement("span", "leif-cycle-context-label");
+    nowLabel.textContent = "Matéria recomendada: ";
+    const nowValue = DomHelpers.createElement("span", "leif-cycle-context-value");
+    nowValue.textContent = recommendedSubject?.name ?? "—";
     cycleContext.appendChild(nowLabel);
     cycleContext.appendChild(nowValue);
-    if (snapshot.currentItemId) {
-      const itemLabel = DomHelpers.createElement("span", "corvo-cycle-context-sublabel");
-      itemLabel.textContent = `Item: ${itemMap.get(snapshot.currentItemId) ?? snapshot.currentItemId}`;
+    if (recommendedItemId) {
+      const itemLabel = DomHelpers.createElement("span", "leif-cycle-context-sublabel");
+      itemLabel.textContent = `Item: ${itemMap.get(recommendedItemId) ?? recommendedItemId}`;
       cycleContext.appendChild(itemLabel);
     }
-    const nextInfo = DomHelpers.createElement("span", "corvo-cycle-context-next");
-    nextInfo.textContent = `Próxima: ${snapshot.nextSubject?.name ?? "—"}`;
-    cycleContext.appendChild(nextInfo);
+    if (afterRecommendedSubject) {
+      const nextInfo = DomHelpers.createElement("span", "leif-cycle-context-next");
+      nextInfo.textContent = `Depois: ${afterRecommendedSubject.name}`;
+      cycleContext.appendChild(nextInfo);
+    }
     container.appendChild(cycleContext);
 
     // Cycle action button
-    const cycleAction = DomHelpers.createElement("div", "corvo-cycle-action");
+    const cycleAction = DomHelpers.createElement("div", "leif-cycle-action");
     cycleAction.appendChild(
       DomHelpers.createButton("Finalizar ciclo atual", {
-        className: "corvo-primary-button",
+        className: "leif-primary-button",
         icon: "refresh-cw",
         onClick: async () => {
           try {
             const result = await this.advanceCycleUseCase.execute();
-            new Notice(`Ciclo finalizado! Próxima matéria: ${result.nextSubject?.name ?? "—"}`);
+            new Notice(`Ciclo finalizado! Matéria recomendada: ${result.currentSubject?.name ?? "—"}`);
             await this.onUpdate();
           } catch (error) {
             this.notifyError(error, "Não foi possível finalizar o ciclo.");
@@ -108,10 +114,6 @@ export class SessionsTab {
     container.appendChild(cycleAction);
 
     const subjects = data.subjects.filter((subject) => subject.contestId === activeContest.id);
-
-    if (this.isCreatingNew) {
-      container.appendChild(this.renderSessionForm(activeContest.id, subjects, data));
-    }
 
     const recentSessions = DomHelpers.createCard("Histórico recente");
     const sessions = data.studySessions
@@ -129,6 +131,7 @@ export class SessionsTab {
         "Assunto",
         "Tipo",
         "Progresso",
+        "Acertos",
         "Ações"
       ]);
 
@@ -147,8 +150,9 @@ export class SessionsTab {
     container.appendChild(recentSessions);
   }
 
-  private renderDisplayRow(session: StudySession, data: CorvoPluginData): HTMLElement {
+  private renderDisplayRow(session: StudySession, data: LeifPluginData): HTMLElement {
     const tr = DomHelpers.createElement("tr");
+    tr.dataset.sessionId = session.id;
     const subjectName =
       data.subjects.find((subject) => subject.id === session.subjectId)?.name ?? "—";
     const topicName =
@@ -158,9 +162,19 @@ export class SessionsTab {
     tr.appendChild(DomHelpers.createCell(subjectName));
     tr.appendChild(DomHelpers.createCell(topicName));
     tr.appendChild(DomHelpers.createCell(this.formatSessionType(session.type)));
-    tr.appendChild(DomHelpers.createCell(String(session.pagesOrCount ?? 0)));
+    tr.appendChild(
+      DomHelpers.createCell(
+        null,
+        this.renderSessionProgress(session, data)
+      )
+    );
+    tr.appendChild(
+      DomHelpers.createCell(
+        session.type === StudySessionType.QUESTIONS ? String(session.correctAnswers ?? 0) : "—"
+      )
+    );
 
-    const actions = DomHelpers.createElement("div", "corvo-inline-actions corvo-inline-actions-compact");
+    const actions = DomHelpers.createElement("div", "leif-inline-actions leif-inline-actions-compact");
     actions.appendChild(
       DomHelpers.createIconButton("edit", "Editar", {
         onClick: async () => {
@@ -192,18 +206,40 @@ export class SessionsTab {
     return tr;
   }
 
-  private renderEditableRow(session: StudySession, data: CorvoPluginData): HTMLElement {
+  private renderSessionProgress(session: StudySession, data: LeifPluginData): HTMLElement {
+    const container = DomHelpers.createElement("div", "leif-session-progress");
+
+    if (session.type === StudySessionType.PDF && session.studyItemId) {
+      const item = data.studyItems.find((i) => i.id === session.studyItemId);
+      const total = item?.totalPages;
+      const readed = session.pagesOrCount ?? 0;
+
+      if (total !== undefined && total > 0) {
+        const progressBar = DomHelpers.createProgressBar(readed, total);
+        container.appendChild(progressBar);
+        return container;
+      }
+    }
+
+    container.textContent = String(session.pagesOrCount ?? 0);
+    return container;
+  }
+
+  private renderEditableRow(session: StudySession, data: LeifPluginData): HTMLElement {
     const tr = DomHelpers.createElement("tr");
-    tr.className = "corvo-editing-row";
+    tr.className = "leif-editing-row";
+    tr.dataset.sessionId = session.id;
 
     const countInput = DomHelpers.createCompactInput("number", "Qtd", String(session.pagesOrCount ?? 0));
+    const correctInput = DomHelpers.createCompactInput("number", "Acertos", String(session.correctAnswers ?? 0));
 
     const saveButton = DomHelpers.createIconButton("save", "Salvar", {
       onClick: async () => {
         try {
           await this.updateStudySessionUseCase.execute({
             sessionId: session.id,
-            pagesOrCount: Number(countInput.value)
+            pagesOrCount: Number(countInput.value),
+            correctAnswers: session.type === StudySessionType.QUESTIONS ? Number(correctInput.value) : undefined
           });
           this.editingSessionId = null;
           await this.onUpdate();
@@ -220,7 +256,7 @@ export class SessionsTab {
       }
     });
 
-    const actions = DomHelpers.createElement("div", "corvo-inline-actions corvo-inline-actions-compact");
+    const actions = DomHelpers.createElement("div", "leif-inline-actions leif-inline-actions-compact");
     actions.appendChild(saveButton);
     actions.appendChild(cancelButton);
 
@@ -234,6 +270,12 @@ export class SessionsTab {
     tr.appendChild(DomHelpers.createCell(topicName));
     tr.appendChild(DomHelpers.createCell(this.formatSessionType(session.type)));
     tr.appendChild(DomHelpers.createCell(null, countInput));
+    tr.appendChild(
+      DomHelpers.createCell(
+        session.type === StudySessionType.QUESTIONS ? null : "—",
+        session.type === StudySessionType.QUESTIONS ? correctInput : undefined
+      )
+    );
 
     const actionsCell = DomHelpers.createElement("td");
     actionsCell.appendChild(actions);
@@ -242,30 +284,39 @@ export class SessionsTab {
     return tr;
   }
 
-  private renderSessionForm(
-    contestId: string,
-    subjects: Array<{ id: string; name: string }>,
-    data: CorvoPluginData
-  ): HTMLElement {
-    const card = DomHelpers.createElement("section", "corvo-card corvo-create-form");
-    card.appendChild(DomHelpers.createSectionSubtitle("Nova sessão", "add"));
+  private openCreateSessionModal(data: LeifPluginData): void {
+    const activeContest = data.contests.find((contest) => contest.id === data.activeContestId);
+    if (!activeContest) return;
+
+    const subjects = data.subjects.filter((subject) => subject.contestId === activeContest.id);
 
     const form = DomHelpers.createForm(async () => {
       try {
+        const sessionType = typeSelect.value as StudySessionType;
+        const rawCount = Number(countInput.value);
+        const rawCorrect = Number(correctInput.value);
+
+        if (sessionType === StudySessionType.QUESTIONS && (!rawCount || rawCount <= 0)) {
+          throw new ValidationError("Informe a quantidade de questões (maior que zero).");
+        }
+
+        const pagesOrCount = sessionType === StudySessionType.QUESTIONS ? rawCount : rawCount || undefined;
+        const correctAnswers =
+          sessionType === StudySessionType.QUESTIONS ? Math.min(rawCorrect, rawCount) : undefined;
+
         await this.registerStudySessionUseCase.execute({
           id: `session-${Date.now()}`,
-          contestId,
+          contestId: activeContest.id,
           subjectId: subjectSelect.value,
           studyItemId: itemSelect.value || undefined,
           topicId: topicSelect.value || undefined,
-          type: typeSelect.value as "pdf" | "video" | "questions",
+          type: sessionType,
           studiedAt: dateInput.value,
-          pagesOrCount: Number(countInput.value),
-          correctAnswers:
-            typeSelect.value === "questions" ? Number(correctInput.value) : undefined,
+          pagesOrCount,
+          correctAnswers,
           completed: true
         });
-        this.isCreatingNew = false;
+        modal.close();
         await this.onUpdate();
       } catch (error) {
         this.notifyError(error, "Não foi possível registrar a sessão.");
@@ -276,9 +327,9 @@ export class SessionsTab {
       subjects.map((subject) => [subject.id, subject.name])
     );
     const typeSelect = DomHelpers.createSelect([
-      ["pdf", "pdf"],
-      ["video", "video"],
-      ["questions", "questions"]
+      ["pdf", "PDF"],
+      ["video", "Vídeo"],
+      ["questions", "Questões"]
     ]);
 
     const getItemOptions = (): Array<[string, string]> => [
@@ -304,12 +355,29 @@ export class SessionsTab {
     dateInput.value = this.getDefaultDateValue();
 
     const syncDependentSelects = (): void => {
+      const previousItem = itemSelect.value;
+      const previousTopic = topicSelect.value;
+
       DomHelpers.replaceSelectOptions(itemSelect, getItemOptions());
       DomHelpers.replaceSelectOptions(topicSelect, getTopicOptions());
+
+      const itemStillValid = Array.from(itemSelect.options).some(
+        (option) => option.value === previousItem
+      );
+      const topicStillValid = Array.from(topicSelect.options).some(
+        (option) => option.value === previousTopic
+      );
+
+      if (!itemStillValid) {
+        itemSelect.value = "";
+      }
+      if (!topicStillValid) {
+        topicSelect.value = "";
+      }
     };
 
     const syncQuestionField = (): void => {
-      const isQuestionSession = typeSelect.value === "questions";
+      const isQuestionSession = typeSelect.value === StudySessionType.QUESTIONS;
       correctLabel.style.display = isQuestionSession ? "" : "none";
     };
 
@@ -318,7 +386,7 @@ export class SessionsTab {
     syncDependentSelects();
     syncQuestionField();
 
-    const formGrid = DomHelpers.createElement("div", "corvo-form-grid");
+    const formGrid = DomHelpers.createElement("div", "leif-form-grid");
     formGrid.append(
       DomHelpers.createLabel("Matéria", subjectSelect),
       DomHelpers.createLabel("Tipo", typeSelect),
@@ -328,29 +396,20 @@ export class SessionsTab {
       correctLabel,
       DomHelpers.createLabel("Data", dateInput)
     );
-    form.append(
-      formGrid,
-      DomHelpers.createButton("Cancelar", {
-        type: "button",
-        className: "corvo-button",
-        onClick: () => {
-          this.isCreatingNew = false;
-          this.onUpdate();
-        }
-      }),
-      DomHelpers.createButton("Registrar sessão", {
-        type: "submit",
-        className: "corvo-primary-button"
-      })
-    );
+    form.appendChild(formGrid);
 
-    card.appendChild(form);
-    return card;
+    const modal = DomHelpers.createModal({
+      title: "Nova sessão",
+      content: form,
+      onSubmit: () => form.requestSubmit()
+    });
+
+    modal.open();
   }
 
-  private formatSessionType(type: "pdf" | "video" | "questions"): string {
-    if (type === "questions") return "Questões";
-    if (type === "video") return "Vídeo";
+  private formatSessionType(type: StudySessionType): string {
+    if (type === StudySessionType.QUESTIONS) return "Questões";
+    if (type === StudySessionType.VIDEO) return "Vídeo";
     return "PDF";
   }
 

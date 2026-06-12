@@ -1,10 +1,10 @@
-# Bem-vindo ao Vault de Teste - Corvo
+# Bem-vindo ao Vault de Teste - Leif
 
-Este vault esta configurado para testar o plugin **Corvo**.
+Este vault esta configurado para testar o plugin **Leif**.
 
 ## Como usar
 
-1. **Abra o Corvo** pela faixa lateral (icone do corvo) ou pela paleta de comandos (`Ctrl/Cmd+P` e digite "Corvo")
+1. **Abra o Leif** pela faixa lateral (icone do leif) ou pela paleta de comandos (`Ctrl/Cmd+P` e digite "Leif")
 2. **Explore as abas**:
    - **Dashboard** - Visao geral do ciclo, materia atual e proxima
    - **Concursos** - Lista de concursos (TCE-SP e SEFAZ-BA)
@@ -26,10 +26,10 @@ O vault ja contem dados de exemplo para o **TCE-SP 2026**:
 
 ## Comandos disponiveis
 
-- `Corvo: Abrir painel do Corvo`
-- `Corvo: Seed demo data` (recria dados de demo)
-- `Corvo: Advance cycle` (avanca para proxima materia)
-- `Corvo: Reset plugin data` (limpa todos os dados)
+- `Leif: Abrir painel do Leif`
+- `Leif: Seed demo data` (recria dados de demo)
+- `Leif: Advance cycle` (avanca para proxima materia)
+- `Leif: Reset plugin data` (limpa todos os dados)
 
 ## O que testar
 

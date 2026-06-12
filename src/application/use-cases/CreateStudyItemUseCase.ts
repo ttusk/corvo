@@ -7,12 +7,13 @@ import { ValidationError } from "@/domain/errors/DomainErrors";
 import { CreateStudyItemValidator } from "@/application/validation/InputValidators";
 
 export interface CreateStudyItemInput {
-  id: string;
+  id?: string;
   subjectId: string;
   title: string;
   weight?: number;
   questionCount?: number;
   resourceReferences?: ResourceReference[];
+  totalPages?: number;
 }
 
 /**
@@ -39,13 +40,14 @@ export class CreateStudyItemUseCase {
       .filter((item) => item.subjectId === input.subjectId);
 
     const nextItem = new StudyItem(
-      input.id,
+      input.id ?? `item-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
       input.subjectId,
       input.title,
       subjectItems.length + 1,
       input.weight,
       input.questionCount,
-      input.resourceReferences ?? []
+      input.resourceReferences ?? [],
+      input.totalPages
     );
 
     await this.studyItemRepository.create(nextItem);

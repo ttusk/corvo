@@ -6,7 +6,7 @@ import { SetSubjectActiveStateUseCase } from "@/application/use-cases/SetSubject
 import { UpdateSubjectConfigurationUseCase } from "@/application/use-cases/UpdateSubjectConfigurationUseCase";
 import type { Subject } from "@/domain/entities/Subject";
 import { NoActiveContestError } from "@/domain/errors/DomainErrors";
-import type { CorvoPluginData } from "@/domain/types/CorvoPluginData";
+import type { LeifPluginData } from "@/domain/types/LeifPluginData";
 import { DomHelpers } from "@/ui/view/shared/DomHelpers";
 import { Notice } from "obsidian";
 
@@ -21,7 +21,6 @@ export class CycleTab {
   private readonly setSubjectActiveStateUseCase: SetSubjectActiveStateUseCase;
   private readonly updateSubjectConfigurationUseCase: UpdateSubjectConfigurationUseCase;
   private editingSubjectId: string | null = null;
-  private isCreatingNew = false;
 
   constructor(
     private readonly dataStore: PluginDataStore,
@@ -37,25 +36,18 @@ export class CycleTab {
   /**
    * Renders the cycle tab content.
    */
-  async render(container: HTMLElement, data: CorvoPluginData): Promise<void> {
-    const header = DomHelpers.createElement("div", "corvo-section-header");
+  async render(container: HTMLElement, data: LeifPluginData): Promise<void> {
+    const header = DomHelpers.createElement("div", "leif-section-header");
     header.appendChild(DomHelpers.createSectionTitle("Ciclo e Matérias"));
     header.appendChild(
       DomHelpers.createIconButton("add", "Nova matéria", {
-        onClick: async () => {
-          this.isCreatingNew = true;
-          await this.onUpdate();
-        }
+        onClick: () => this.openCreateSubjectModal(data)
       })
     );
     container.appendChild(header);
     container.appendChild(
       DomHelpers.createParagraph("Gerencie a ordem, o status, o tempo e a etapa das matérias.")
     );
-
-    if (this.isCreatingNew) {
-      container.appendChild(this.renderCreateSubjectForm(data));
-    }
 
     const activeContest =
       data.contests.find((contest) => contest.id === data.activeContestId) ?? null;
@@ -72,8 +64,8 @@ export class CycleTab {
       return;
     }
 
-    const tableWrapper = DomHelpers.createElement("div", "corvo-table-wrapper");
-    const table = DomHelpers.createElement("table", "corvo-table");
+    const tableWrapper = DomHelpers.createElement("div", "leif-table-wrapper");
+    const table = DomHelpers.createElement("table", "leif-table");
 
     // Header
     const thead = DomHelpers.createElement("thead");
@@ -125,17 +117,17 @@ export class CycleTab {
     activeContestId: string | null
   ): HTMLElement {
     const tr = DomHelpers.createElement("tr");
-    tr.className = "corvo-editing-row";
+    tr.className = "leif-editing-row";
 
     const minutesInput = DomHelpers.createInput(
       "number",
       "Min",
       String(subject.plannedStudyMinutes)
     );
-    minutesInput.className = "corvo-input corvo-input-compact";
+    minutesInput.className = "leif-input leif-input-compact";
 
     const stageInput = DomHelpers.createInput("text", "Etapa", subject.currentStage ?? "");
-    stageInput.className = "corvo-input corvo-input-compact";
+    stageInput.className = "leif-input leif-input-compact";
 
     const saveButton = DomHelpers.createIconButton("save", "Salvar", {
       onClick: async () => {
@@ -160,7 +152,7 @@ export class CycleTab {
       }
     });
 
-    const controls = DomHelpers.createElement("div", "corvo-inline-actions corvo-inline-actions-compact");
+    const controls = DomHelpers.createElement("div", "leif-inline-actions leif-inline-actions-compact");
     controls.appendChild(saveButton);
     controls.appendChild(cancelButton);
 
@@ -193,53 +185,49 @@ export class CycleTab {
     return tr;
   }
 
-  private renderCreateSubjectForm(data: CorvoPluginData): HTMLElement {
+  private openCreateSubjectModal(data: LeifPluginData): void {
     const activeContestId = data.activeContestId;
     const nameInput = DomHelpers.createInput("text", "Nome da matéria");
     const minutesInput = DomHelpers.createInput("number", "Minutos planejados", "60");
 
-    const form = DomHelpers.createInlineForm(
-      "Nova matéria",
-      async () => {
-        try {
-          if (!activeContestId) {
-            throw new NoActiveContestError();
-          }
-          await this.createSubjectUseCase.execute({
-            id: `${activeContestId}-subject-${Date.now()}`,
-            contestId: activeContestId,
-            name: nameInput.value,
-            plannedStudyMinutes: Number(minutesInput.value)
-          });
-          nameInput.value = "";
-          minutesInput.value = "60";
-          this.isCreatingNew = false;
-          await this.onUpdate();
-        } catch (error) {
-          this.notifyError(error, "Não foi possível criar a matéria.");
+    const form = DomHelpers.createForm(async () => {
+      try {
+        if (!activeContestId) {
+          throw new NoActiveContestError();
         }
-      },
-      () => {
-        this.isCreatingNew = false;
-        this.onUpdate();
+        await this.createSubjectUseCase.execute({
+          id: `${activeContestId}-subject-${Date.now()}`,
+          contestId: activeContestId,
+          name: nameInput.value,
+          plannedStudyMinutes: Number(minutesInput.value)
+        });
+        modal.close();
+        await this.onUpdate();
+      } catch (error) {
+        this.notifyError(error, "Não foi possível criar a matéria.");
       }
-    );
+    });
 
-    const innerForm = form.querySelector("form")!;
-    innerForm.append(
+    form.append(
       DomHelpers.createLabel("Nome", nameInput),
       DomHelpers.createLabel("Minutos", minutesInput)
     );
 
-    return form;
+    const modal = DomHelpers.createModal({
+      title: "Nova matéria",
+      content: form,
+      onSubmit: () => form.requestSubmit()
+    });
+
+    modal.open();
   }
 
   private renderStatusCell(
     subject: Subject,
     activeContestId: string | null
   ): HTMLElement {
-    const td = DomHelpers.createElement("td", "corvo-status-cell");
-    const span = DomHelpers.createElement("span", subject.isActive ? "corvo-status-active" : "corvo-status-inactive");
+    const td = DomHelpers.createElement("td", "leif-status-cell");
+    const span = DomHelpers.createElement("span", subject.isActive ? "leif-status-active" : "leif-status-inactive");
     span.textContent = subject.isActive ? "Ativa" : "Inativa";
     td.appendChild(span);
 
@@ -259,7 +247,7 @@ export class CycleTab {
   }
 
   private renderEditCell(subject: Subject): HTMLElement {
-    const cell = DomHelpers.createElement("div", "corvo-edit-cell");
+    const cell = DomHelpers.createElement("div", "leif-edit-cell");
     cell.appendChild(
       DomHelpers.createIconButton("edit", "Editar", {
         onClick: async () => {

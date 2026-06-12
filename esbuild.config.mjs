@@ -18,7 +18,7 @@ const context = await esbuild.context({
 });
 
 function copyToSampleVault() {
-  const vaultPluginDir = path.resolve("sample-vault/.obsidian/plugins/corvo");
+  const vaultPluginDir = path.resolve("sample-vault/.obsidian/plugins/leif");
   if (fs.existsSync(vaultPluginDir)) {
     fs.copyFileSync("dist/main.js", path.join(vaultPluginDir, "main.js"));
     fs.copyFileSync("styles.css", path.join(vaultPluginDir, "styles.css"));

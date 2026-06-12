@@ -41,11 +41,26 @@ export class RegisterStudySessionUseCase {
       await this.topicRepository.findById(input.topicId);
     }
 
-    await this.sessionRepository.create(input);
+    const session = new StudySession(
+      input.id,
+      input.contestId,
+      input.type,
+      input.studiedAt,
+      input.subjectId,
+      input.studyItemId,
+      input.topicId,
+      input.phase,
+      input.reference,
+      input.pagesOrCount,
+      input.correctAnswers,
+      input.completed
+    );
 
-    await this.updateTopicQuestionNotebookStats(input);
+    await this.sessionRepository.create(session);
 
-    return input;
+    await this.updateTopicQuestionNotebookStats(session);
+
+    return session;
   }
 
   private async updateTopicQuestionNotebookStats(session: StudySession): Promise<void> {
@@ -58,12 +73,17 @@ export class RegisterStudySessionUseCase {
         return topic;
       }
 
+      const currentSolved = topic.questionNotebook.solvedQuestions ?? 0;
+      const currentCorrect = topic.questionNotebook.correctAnswers ?? 0;
+      const addedSolved = session.pagesOrCount ?? 0;
+      const addedCorrect = session.correctAnswers ?? 0;
+
       return {
         ...topic,
         questionNotebook: {
           ...topic.questionNotebook,
-          solvedQuestions: topic.questionNotebook.solvedQuestions + (session.pagesOrCount ?? 0),
-          correctAnswers: topic.questionNotebook.correctAnswers + (session.correctAnswers ?? 0)
+          solvedQuestions: currentSolved + addedSolved,
+          correctAnswers: currentCorrect + addedCorrect
         }
       };
     });

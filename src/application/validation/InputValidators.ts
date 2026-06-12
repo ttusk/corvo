@@ -34,6 +34,14 @@ function requireNonNegative(value: number | undefined, fieldName: string): strin
   return undefined;
 }
 
+function requireNonNegativeInteger(value: number | undefined, fieldName: string): string | undefined {
+  if (value === undefined) return undefined;
+  if (!Number.isInteger(value)) {
+    return `${fieldName} must be an integer`;
+  }
+  return requireNonNegative(value, fieldName);
+}
+
 function requireMinLength(value: string | undefined, min: number, fieldName: string): string | undefined {
   if (value && value.length < min) {
     return `${fieldName} must be at least ${min} characters`;
@@ -44,6 +52,13 @@ function requireMinLength(value: string | undefined, min: number, fieldName: str
 function collectErrors(...checks: (string | undefined)[]): ValidationResult {
   const errors = checks.filter((c): c is string => c !== undefined);
   return errors.length > 0 ? ValidationResult.fail(errors) : ValidationResult.ok();
+}
+
+function requireOneOf(value: string, allowed: string[], fieldName: string): string | undefined {
+  if (!allowed.includes(value)) {
+    return `${fieldName} must be one of: ${allowed.join(", ")}`;
+  }
+  return undefined;
 }
 
 /**
@@ -76,9 +91,8 @@ export class CreateSubjectValidator {
  * Validates input for creating a study item.
  */
 export class CreateStudyItemValidator {
-  validate(input: { id: string; subjectId: string; title: string; weight?: number; questionCount?: number }): ValidationResult {
+  validate(input: { subjectId: string; title: string; weight?: number; questionCount?: number }): ValidationResult {
     return collectErrors(
-      requireNonEmpty(input.id, "ID"),
       requireNonEmpty(input.subjectId, "Subject ID"),
       requireNonEmpty(input.title, "Title"),
       requireNonNegative(input.weight, "Weight"),
@@ -181,21 +195,8 @@ export class AddStudyItemResourceReferenceValidator {
       requireNonEmpty(input.studyItemId, "Study item ID"),
       requireNonEmpty(input.resourceReference.id, "Resource reference ID"),
       requireNonEmpty(input.resourceReference.title, "Resource reference title"),
-      requireNonEmpty(input.resourceReference.type, "Resource reference type")
-    );
-  }
-}
-
-/**
- * Validates input for adding a resource reference to a topic.
- */
-export class AddTopicResourceReferenceValidator {
-  validate(input: { topicId: string; resourceReference: { id: string; title: string; type: string } }): ValidationResult {
-    return collectErrors(
-      requireNonEmpty(input.topicId, "Topic ID"),
-      requireNonEmpty(input.resourceReference.id, "Resource reference ID"),
-      requireNonEmpty(input.resourceReference.title, "Resource reference title"),
-      requireNonEmpty(input.resourceReference.type, "Resource reference type")
+      requireNonEmpty(input.resourceReference.type, "Resource reference type"),
+      requireOneOf(input.resourceReference.type, ["pdf", "video", "link"], "Resource reference type")
     );
   }
 }

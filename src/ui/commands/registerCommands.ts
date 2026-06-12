@@ -16,7 +16,8 @@ import { SetSubjectActiveStateUseCase } from "@/application/use-cases/SetSubject
 import { SetActiveContestUseCase } from "@/application/use-cases/SetActiveContestUseCase";
 import { UpdateContestWallUseCase } from "@/application/use-cases/UpdateContestWallUseCase";
 import { UpdateSubjectConfigurationUseCase } from "@/application/use-cases/UpdateSubjectConfigurationUseCase";
-import { createDefaultCorvoPluginData } from "@/domain/types/CorvoPluginData";
+import { createDefaultLeifPluginData } from "@/domain/types/LeifPluginData";
+import { seedTceSpDemo } from "@/infrastructure/persistence/Seeder";
 
 export function registerCommands(plugin: Plugin, dataStore: PluginDataStore): void {
   const createContest = new CreateContestUseCase(dataStore);
@@ -35,7 +36,7 @@ export function registerCommands(plugin: Plugin, dataStore: PluginDataStore): vo
   const updateSubjectConfiguration = new UpdateSubjectConfigurationUseCase(dataStore);
 
   plugin.addCommand({
-    id: "corvo-show-active-contest",
+    id: "leif-show-active-contest",
     name: "Show active contest",
     callback: async () => {
       const data = await dataStore.load();
@@ -46,102 +47,38 @@ export function registerCommands(plugin: Plugin, dataStore: PluginDataStore): vo
   });
 
   plugin.addCommand({
-    id: "corvo-seed-demo-data",
+    id: "leif-seed-demo-data",
     name: "Seed demo data",
     callback: async () => {
       const data = await dataStore.load();
 
       if (data.contests.length > 0) {
-        new Notice("Corvo already has data. Demo seed skipped.");
+        new Notice("Leif already has data. Demo seed skipped.");
         return;
       }
 
-      await createContest.execute({ id: "demo-trt", name: "TRT Demo" });
-      await createContest.execute({ id: "demo-sefaz", name: "SEFAZ Demo" });
-      await createSubject.execute({
-        id: "subject-portuguese",
-        contestId: "demo-trt",
-        name: "Portuguese",
-        plannedStudyMinutes: 60
-      });
-      await createSubject.execute({
-        id: "subject-constitutional-law",
-        contestId: "demo-trt",
-        name: "Constitutional Law",
-        plannedStudyMinutes: 45
-      });
-      await createSubject.execute({
-        id: "subject-tax-law",
-        contestId: "demo-sefaz",
-        name: "Tax Law",
-        plannedStudyMinutes: 50
-      });
-      await createStudyItem.execute({
-        id: "item-portuguese-1",
-        subjectId: "subject-portuguese",
-        title: "Sintaxe"
-      });
-      await createStudyItem.execute({
-        id: "item-portuguese-2",
-        subjectId: "subject-portuguese",
-        title: "Pontuação"
-      });
-      await createTopic.execute({
-        id: "topic-portuguese-1",
-        subjectId: "subject-portuguese",
-        name: "Orações subordinadas"
-      });
-      await updateContestWall.execute({
-        contestId: "demo-trt",
-        wall: {
-          noticeLinks: [{ id: "notice-demo", label: "Edital", url: "https://example.com/edital" }],
-          examLinks: [{ id: "exam-demo", label: "Prova anterior", url: "https://example.com/prova" }],
-          subjectSnapshots: [{ subjectId: "subject-portuguese", weight: 2, score: 10 }],
-          notes: "Dados de demonstração do Corvo."
-        }
-      });
-      await updateContestWall.execute({
-        contestId: "demo-sefaz",
-        wall: {
-          noticeLinks: [{ id: "notice-sefaz", label: "Edital", url: "https://example.com/sefaz-edital" }],
-          examLinks: [],
-          subjectSnapshots: [{ subjectId: "subject-tax-law", weight: 3, score: 15 }],
-          notes: "Foco em legislação tributária."
-        }
-      });
-      await registerStudySession.execute({
-        id: "session-demo-1",
-        contestId: "demo-trt",
-        subjectId: "subject-portuguese",
-        topicId: "topic-portuguese-1",
-        type: "pdf",
-        studiedAt: new Date().toISOString(),
-        pagesOrCount: 25,
-        completed: true
-      });
-      await registerStudySession.execute({
-        id: "session-demo-2",
-        contestId: "demo-sefaz",
-        subjectId: "subject-tax-law",
-        type: "questions",
-        studiedAt: new Date().toISOString(),
-        pagesOrCount: 10,
-        correctAnswers: 8,
-        completed: true
-      });
-
-      new Notice("Corvo demo data created.");
+      await seedTceSpDemo(dataStore);
+      new Notice("Leif demo data created.");
     }
   });
 
   plugin.addCommand({
-    id: "corvo-switch-active-contest",
+    id: "leif-switch-active-contest",
     name: "Switch active contest",
     callback: async () => {
       const data = await dataStore.load();
 
-      if (data.contests.length < 2) {
+      if (data.contests.length === 0) {
         new Notice("At least two contests are required to switch the active contest.");
+        return;
+      }
+
+      if (data.contests.length === 1 && data.activeContestId) {
+        await dataStore.save({
+          ...data,
+          activeContestId: null
+        });
+        new Notice("Active contest switched to: none");
         return;
       }
 
@@ -154,7 +91,7 @@ export function registerCommands(plugin: Plugin, dataStore: PluginDataStore): vo
   });
 
   plugin.addCommand({
-    id: "corvo-show-active-subjects",
+    id: "leif-show-active-subjects",
     name: "Show active contest subjects",
     callback: async () => {
       const subjects = await listSubjectsForActiveContest.execute();
@@ -177,7 +114,7 @@ export function registerCommands(plugin: Plugin, dataStore: PluginDataStore): vo
   });
 
   plugin.addCommand({
-    id: "corvo-reorder-active-subjects",
+    id: "leif-reorder-active-subjects",
     name: "Reorder active contest subjects",
     callback: async () => {
       const data = await dataStore.load();
@@ -198,7 +135,7 @@ export function registerCommands(plugin: Plugin, dataStore: PluginDataStore): vo
   });
 
   plugin.addCommand({
-    id: "corvo-toggle-first-subject-active",
+    id: "leif-toggle-first-subject-active",
     name: "Toggle first subject active state",
     callback: async () => {
       const subjects = await listSubjectsForActiveContest.execute();
@@ -219,7 +156,7 @@ export function registerCommands(plugin: Plugin, dataStore: PluginDataStore): vo
   });
 
   plugin.addCommand({
-    id: "corvo-update-first-subject-config",
+    id: "leif-update-first-subject-config",
     name: "Update first subject configuration",
     callback: async () => {
       const subjects = await listSubjectsForActiveContest.execute();
@@ -243,7 +180,7 @@ export function registerCommands(plugin: Plugin, dataStore: PluginDataStore): vo
   });
 
   plugin.addCommand({
-    id: "corvo-advance-cycle",
+    id: "leif-advance-cycle",
     name: "Advance cycle",
     callback: async () => {
       try {
@@ -256,7 +193,7 @@ export function registerCommands(plugin: Plugin, dataStore: PluginDataStore): vo
   });
 
   plugin.addCommand({
-    id: "corvo-show-cycle-snapshot",
+    id: "leif-show-cycle-snapshot",
     name: "Show cycle snapshot",
     callback: async () => {
       try {
@@ -278,7 +215,7 @@ export function registerCommands(plugin: Plugin, dataStore: PluginDataStore): vo
   });
 
   plugin.addCommand({
-    id: "corvo-show-active-contest-wall",
+    id: "leif-show-active-contest-wall",
     name: "Show active contest wall",
     callback: async () => {
       const data = await dataStore.load();
@@ -296,7 +233,7 @@ export function registerCommands(plugin: Plugin, dataStore: PluginDataStore): vo
   });
 
   plugin.addCommand({
-    id: "corvo-show-summary",
+    id: "leif-show-summary",
     name: "Show active contest summary",
     callback: async () => {
       try {
@@ -326,7 +263,7 @@ export function registerCommands(plugin: Plugin, dataStore: PluginDataStore): vo
   });
 
   plugin.addCommand({
-    id: "corvo-register-demo-question-session",
+    id: "leif-register-demo-question-session",
     name: "Register demo question session",
     callback: async () => {
       const data = await dataStore.load();
@@ -365,7 +302,7 @@ export function registerCommands(plugin: Plugin, dataStore: PluginDataStore): vo
   });
 
   plugin.addCommand({
-    id: "corvo-register-demo-video-session",
+    id: "leif-register-demo-video-session",
     name: "Register demo video session",
     callback: async () => {
       const data = await dataStore.load();
@@ -397,11 +334,11 @@ export function registerCommands(plugin: Plugin, dataStore: PluginDataStore): vo
   });
 
   plugin.addCommand({
-    id: "corvo-reset-demo-data",
+    id: "leif-reset-demo-data",
     name: "Reset plugin data",
     callback: async () => {
-      await dataStore.save(createDefaultCorvoPluginData());
-      new Notice("Corvo data reset.");
+      await dataStore.save(createDefaultLeifPluginData());
+      new Notice("Leif data reset.");
     }
   });
 }

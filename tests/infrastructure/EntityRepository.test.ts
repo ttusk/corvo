@@ -2,28 +2,28 @@ import { describe, expect, it } from "vitest";
 
 import type { PersistentStorageAdapter } from "@/application/ports/PersistentStorageAdapter";
 import { EntityRepository } from "@/infrastructure/persistence/EntityRepository";
-import { createDefaultCorvoPluginData, type CorvoPluginData } from "@/domain/types/CorvoPluginData";
+import { createDefaultLeifPluginData, type LeifPluginData } from "@/domain/types/LeifPluginData";
 import { PluginDataStore } from "@/infrastructure/persistence/PluginDataStore";
 import { NotFoundError, AlreadyExistsError } from "@/domain/errors/DomainErrors";
 
-class InMemoryStorageAdapter implements PersistentStorageAdapter<CorvoPluginData> {
-  private data: CorvoPluginData | null;
+class InMemoryStorageAdapter implements PersistentStorageAdapter<LeifPluginData> {
+  private data: LeifPluginData | null;
 
-  constructor(initialData: CorvoPluginData | null = null) {
+  constructor(initialData: LeifPluginData | null = null) {
     this.data = initialData;
   }
 
-  async load(): Promise<CorvoPluginData | null> {
+  async load(): Promise<LeifPluginData | null> {
     return this.data;
   }
 
-  async save(data: CorvoPluginData): Promise<void> {
+  async save(data: LeifPluginData): Promise<void> {
     this.data = data;
   }
 }
 
 function createStore(): PluginDataStore {
-  return new PluginDataStore(new InMemoryStorageAdapter(createDefaultCorvoPluginData()));
+  return new PluginDataStore(new InMemoryStorageAdapter(createDefaultLeifPluginData()));
 }
 
 describe("EntityRepository", () => {

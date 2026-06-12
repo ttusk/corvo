@@ -1,7 +1,7 @@
 import type { PluginDataStore } from "@/application/ports/PluginDataStore";
 import { UpdateContestWallUseCase } from "@/application/use-cases/UpdateContestWallUseCase";
 import { NoActiveContestError } from "@/domain/errors/DomainErrors";
-import type { CorvoPluginData } from "@/domain/types/CorvoPluginData";
+import type { LeifPluginData } from "@/domain/types/LeifPluginData";
 import { DomHelpers } from "@/ui/view/shared/DomHelpers";
 import { Notice } from "obsidian";
 
@@ -18,7 +18,7 @@ export class WallTab {
     this.updateContestWallUseCase = new UpdateContestWallUseCase(dataStore);
   }
 
-  async render(container: HTMLElement, data: CorvoPluginData): Promise<void> {
+  async render(container: HTMLElement, data: LeifPluginData): Promise<void> {
     container.appendChild(DomHelpers.createSectionTitle("Mural"));
     container.appendChild(
       DomHelpers.createParagraph("Centralize os links e notas principais do concurso.")
@@ -41,7 +41,7 @@ export class WallTab {
     container.appendChild(this.renderSnapshotsCard(activeContest, data));
   }
 
-  private renderWallForm(activeContest: NonNullable<CorvoPluginData["contests"][number]>): HTMLElement {
+  private renderWallForm(activeContest: NonNullable<LeifPluginData["contests"][number]>): HTMLElement {
     const noticeLabel = DomHelpers.createInput(
       "text",
       "Rótulo do edital",
@@ -105,7 +105,7 @@ export class WallTab {
       }
     });
 
-    form.classList.add("corvo-card");
+    form.classList.add("leif-card");
 
     form.append(
       DomHelpers.createLabel("Edital", noticeLabel),
@@ -115,7 +115,7 @@ export class WallTab {
       DomHelpers.createLabel("Notas", notes),
       DomHelpers.createButton("Salvar mural", {
         type: "submit",
-        className: "corvo-primary-button"
+        className: "leif-primary-button"
       })
     );
 
@@ -123,8 +123,8 @@ export class WallTab {
   }
 
   private renderSnapshotsCard(
-    activeContest: NonNullable<CorvoPluginData["contests"][number]>,
-    data: CorvoPluginData
+    activeContest: NonNullable<LeifPluginData["contests"][number]>,
+    data: LeifPluginData
   ): HTMLElement {
     const card = DomHelpers.createCard("Snapshots das matérias");
     if (activeContest.wall.subjectSnapshots.length === 0) {

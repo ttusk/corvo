@@ -20,13 +20,13 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // src/main.ts
 var main_exports = {};
 __export(main_exports, {
-  default: () => CorvoPlugin
+  default: () => LeifPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian11 = require("obsidian");
+var import_obsidian10 = require("obsidian");
 
-// src/domain/types/CorvoPluginData.ts
-function createDefaultCorvoPluginData() {
+// src/domain/types/LeifPluginData.ts
+function createDefaultLeifPluginData() {
   return {
     version: 1,
     schemaVersion: 1,
@@ -127,11 +127,11 @@ var PluginDataStore = class {
   async load() {
     const storedData = await this.storageAdapter.load();
     if (!storedData) {
-      return createDefaultCorvoPluginData();
+      return createDefaultLeifPluginData();
     }
     const migratedData = this.migrationService.migrate(storedData);
     return {
-      ...createDefaultCorvoPluginData(),
+      ...createDefaultLeifPluginData(),
       ...migratedData
     };
   }
@@ -199,23 +199,51 @@ var CycleService = class {
   }
   /**
    * Gets the next study item ID for a subject.
-   * 
+   *
    * @param subject - The subject containing items
    * @param currentItemId - ID of the current item (optional)
-   * @returns The next item ID, or null if no items exist
+   * @param isCompleted - Optional predicate that returns true when an item is
+   *   considered completed. When provided, the method skips completed items
+   *   and returns null if every item is completed.
+   * @returns The next item ID, or null if no items exist or all are completed
    */
-  getNextItemId(subject, currentItemId) {
+  getNextItemId(subject, currentItemId, isCompleted) {
     if (subject.itemIds.length === 0) {
       return null;
     }
+    if (!isCompleted) {
+      if (!currentItemId) {
+        return subject.itemIds[0];
+      }
+      const currentIndex2 = subject.itemIds.findIndex((itemId) => itemId === currentItemId);
+      if (currentIndex2 === -1) {
+        return subject.itemIds[0];
+      }
+      return subject.itemIds[(currentIndex2 + 1) % subject.itemIds.length];
+    }
+    const findNext = () => {
+      for (const candidate of subject.itemIds) {
+        if (!isCompleted(candidate)) {
+          return candidate;
+        }
+      }
+      return null;
+    };
     if (!currentItemId) {
-      return subject.itemIds[0];
+      return findNext();
     }
     const currentIndex = subject.itemIds.findIndex((itemId) => itemId === currentItemId);
     if (currentIndex === -1) {
-      return subject.itemIds[0];
+      return findNext();
     }
-    return subject.itemIds[(currentIndex + 1) % subject.itemIds.length];
+    const total = subject.itemIds.length;
+    for (let offset = 1; offset <= total; offset += 1) {
+      const nextId = subject.itemIds[(currentIndex + offset) % total];
+      if (!isCompleted(nextId)) {
+        return nextId;
+      }
+    }
+    return null;
   }
 };
 
@@ -242,6 +270,70 @@ var ValidationError = class extends Error {
   constructor(message) {
     super(message);
     this.name = "ValidationError";
+  }
+};
+
+// src/domain/entities/StudySession.ts
+var StudySessionType = {
+  PDF: "pdf",
+  VIDEO: "video",
+  QUESTIONS: "questions"
+};
+var StudySession = class {
+  constructor(id, contestId, type, studiedAt, subjectId, studyItemId, topicId, phase, reference, pagesOrCount, correctAnswers, completed) {
+    this.id = id;
+    this.contestId = contestId;
+    this.type = type;
+    this.studiedAt = studiedAt;
+    this.subjectId = subjectId;
+    this.studyItemId = studyItemId;
+    this.topicId = topicId;
+    this.phase = phase;
+    this.reference = reference;
+    this.pagesOrCount = pagesOrCount;
+    this.correctAnswers = correctAnswers;
+    this.completed = completed;
+    if (!id?.trim()) throw new ValidationError("StudySession ID is required");
+    if (!contestId?.trim()) throw new ValidationError("StudySession contestId is required");
+    if (!type) throw new ValidationError("StudySession type is required");
+    if (!studiedAt?.trim()) throw new ValidationError("StudySession studiedAt is required");
+    if (pagesOrCount !== void 0 && pagesOrCount < 0) throw new ValidationError("StudySession pagesOrCount cannot be negative");
+    if (correctAnswers !== void 0 && correctAnswers < 0) throw new ValidationError("StudySession correctAnswers cannot be negative");
+    if (correctAnswers !== void 0 && pagesOrCount !== void 0 && correctAnswers > pagesOrCount) {
+      throw new ValidationError("StudySession correctAnswers cannot exceed pagesOrCount");
+    }
+  }
+};
+
+// src/domain/services/ItemProgressService.ts
+var ItemProgressService = class {
+  /**
+   * Total number of pages read across all pdf sessions for a given item.
+   */
+  pagesReadedFor(itemId, sessions) {
+    return sessions.filter((session) => session.type === StudySessionType.PDF && session.studyItemId === itemId).reduce((total, session) => total + (session.pagesOrCount ?? 0), 0);
+  }
+  /**
+   * True when the item has a known totalPages target and the read pages
+   * meet or exceed it.
+   */
+  isItemCompleted(item, sessions) {
+    if (item.totalPages === void 0 || item.totalPages <= 0) {
+      return false;
+    }
+    return this.pagesReadedFor(item.id, sessions) >= item.totalPages;
+  }
+  /**
+   * Builds a predicate that returns true when a given item id is completed
+   * for the supplied set of items and sessions.
+   */
+  buildCompletionPredicate(items, sessions) {
+    const byId = new Map(items.map((item) => [item.id, item]));
+    return (itemId) => {
+      const item = byId.get(itemId);
+      if (!item) return false;
+      return this.isItemCompleted(item, sessions);
+    };
   }
 };
 
@@ -288,9 +380,10 @@ var ActiveContestGuard = class {
 
 // src/application/use-cases/AdvanceCycleUseCase.ts
 var AdvanceCycleUseCase = class {
-  constructor(dataStore, cycleService = new CycleService()) {
+  constructor(dataStore, cycleService = new CycleService(), progressService = new ItemProgressService()) {
     this.dataStore = dataStore;
     this.cycleService = cycleService;
+    this.progressService = progressService;
     this.guard = new ActiveContestGuard(dataStore);
   }
   async execute() {
@@ -308,10 +401,17 @@ var AdvanceCycleUseCase = class {
     if (!nextSubject) {
       throw new Error(`Contest "${activeContestId}" has no active subjects.`);
     }
+    const subjectItems = data.studyItems.filter(
+      (item) => item.subjectId === nextSubject.id
+    );
+    const isCompleted = this.progressService.buildCompletionPredicate(
+      subjectItems,
+      data.studySessions
+    );
     const nextState = {
       contestId: currentState.contestId,
       currentSubjectId: nextSubject.id,
-      currentItemId: this.cycleService.getNextItemId(nextSubject)
+      currentItemId: this.cycleService.getNextItemId(nextSubject, void 0, isCompleted)
     };
     await this.dataStore.save({
       ...data,
@@ -319,7 +419,25 @@ var AdvanceCycleUseCase = class {
         (state) => state.contestId === nextState.contestId ? nextState : state
       )
     });
-    return nextState;
+    const subjectAfter = this.cycleService.getNextActiveSubject(
+      contestSubjects,
+      nextSubject.id
+    );
+    const subjectAfterItems = data.studyItems.filter(
+      (item) => item.subjectId === subjectAfter?.id
+    );
+    const isSubjectAfterCompleted = this.progressService.buildCompletionPredicate(
+      subjectAfterItems,
+      data.studySessions
+    );
+    return {
+      contestId: activeContestId,
+      currentSubject: nextSubject,
+      nextSubject: subjectAfter,
+      currentItemId: nextState.currentItemId,
+      nextItemId: subjectAfter ? this.cycleService.getNextItemId(subjectAfter, void 0, isSubjectAfterCompleted) : null,
+      currentSubjectId: nextState.currentSubjectId
+    };
   }
 };
 
@@ -483,6 +601,12 @@ function collectErrors(...checks) {
   const errors = checks.filter((c) => c !== void 0);
   return errors.length > 0 ? ValidationResult.fail(errors) : ValidationResult.ok();
 }
+function requireOneOf(value, allowed, fieldName) {
+  if (!allowed.includes(value)) {
+    return `${fieldName} must be one of: ${allowed.join(", ")}`;
+  }
+  return void 0;
+}
 var CreateContestValidator = class {
   validate(input) {
     return collectErrors(
@@ -504,7 +628,6 @@ var CreateSubjectValidator = class {
 var CreateStudyItemValidator = class {
   validate(input) {
     return collectErrors(
-      requireNonEmpty(input.id, "ID"),
       requireNonEmpty(input.subjectId, "Subject ID"),
       requireNonEmpty(input.title, "Title"),
       requireNonNegative(input.weight, "Weight"),
@@ -575,17 +698,8 @@ var AddStudyItemResourceReferenceValidator = class {
       requireNonEmpty(input.studyItemId, "Study item ID"),
       requireNonEmpty(input.resourceReference.id, "Resource reference ID"),
       requireNonEmpty(input.resourceReference.title, "Resource reference title"),
-      requireNonEmpty(input.resourceReference.type, "Resource reference type")
-    );
-  }
-};
-var AddTopicResourceReferenceValidator = class {
-  validate(input) {
-    return collectErrors(
-      requireNonEmpty(input.topicId, "Topic ID"),
-      requireNonEmpty(input.resourceReference.id, "Resource reference ID"),
-      requireNonEmpty(input.resourceReference.title, "Resource reference title"),
-      requireNonEmpty(input.resourceReference.type, "Resource reference type")
+      requireNonEmpty(input.resourceReference.type, "Resource reference type"),
+      requireOneOf(input.resourceReference.type, ["pdf", "video", "link"], "Resource reference type")
     );
   }
 };
@@ -633,7 +747,7 @@ var CreateContestUseCase = class {
 
 // src/domain/entities/StudyItem.ts
 var StudyItem = class {
-  constructor(id, subjectId, title, order, weight, questionCount, resourceReferences) {
+  constructor(id, subjectId, title, order, weight, questionCount, resourceReferences, totalPages) {
     this.id = id;
     this.subjectId = subjectId;
     this.title = title;
@@ -641,12 +755,14 @@ var StudyItem = class {
     this.weight = weight;
     this.questionCount = questionCount;
     this.resourceReferences = resourceReferences;
+    this.totalPages = totalPages;
     if (!id?.trim()) throw new ValidationError("StudyItem ID is required");
     if (!subjectId?.trim()) throw new ValidationError("StudyItem subjectId is required");
     if (!title?.trim()) throw new ValidationError("StudyItem title is required");
     if (order < 0) throw new ValidationError("StudyItem order cannot be negative");
     if (weight !== void 0 && weight < 0) throw new ValidationError("StudyItem weight cannot be negative");
     if (questionCount !== void 0 && questionCount < 0) throw new ValidationError("StudyItem questionCount cannot be negative");
+    if (totalPages !== void 0 && totalPages < 0) throw new ValidationError("StudyItem totalPages cannot be negative");
   }
 };
 
@@ -665,13 +781,14 @@ var CreateStudyItemUseCase = class {
     const subject = await this.subjectRepository.findById(input.subjectId);
     const subjectItems = (await this.studyItemRepository.findAll()).filter((item) => item.subjectId === input.subjectId);
     const nextItem = new StudyItem(
-      input.id,
+      input.id ?? `item-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
       input.subjectId,
       input.title,
       subjectItems.length + 1,
       input.weight,
       input.questionCount,
-      input.resourceReferences ?? []
+      input.resourceReferences ?? [],
+      input.totalPages
     );
     await this.studyItemRepository.create(nextItem);
     await this.subjectRepository.update(input.subjectId, (subject2) => ({
@@ -797,8 +914,8 @@ var GetActiveContestSummaryUseCase = class {
       const subjectSessions = data.studySessions.filter(
         (session) => session.contestId === activeContestId && session.subjectId === subject.id
       );
-      const pdfProgressCount = subjectSessions.filter((session) => session.type === "pdf").reduce((total, session) => total + (session.pagesOrCount ?? 0), 0);
-      const questionSessions = subjectSessions.filter((session) => session.type === "questions");
+      const pdfProgressCount = subjectSessions.filter((session) => session.type === StudySessionType.PDF).reduce((total, session) => total + (session.pagesOrCount ?? 0), 0);
+      const questionSessions = subjectSessions.filter((session) => session.type === StudySessionType.QUESTIONS);
       const questionProgressCount = questionSessions.reduce(
         (total, session) => total + (session.pagesOrCount ?? 0),
         0
@@ -807,13 +924,14 @@ var GetActiveContestSummaryUseCase = class {
         (total, session) => total + (session.correctAnswers ?? 0),
         0
       );
+      const rawAccuracy = questionProgressCount > 0 ? totalCorrectAnswers / questionProgressCount : 0;
       return {
         subjectId: subject.id,
         subjectName: subject.name,
         totalSessions: subjectSessions.length,
         pdfProgressCount,
         questionProgressCount,
-        questionAccuracy: questionProgressCount > 0 ? totalCorrectAnswers / questionProgressCount : null
+        questionAccuracy: questionProgressCount > 0 ? Math.min(1, rawAccuracy) : null
       };
     });
     return {
@@ -825,9 +943,10 @@ var GetActiveContestSummaryUseCase = class {
 
 // src/application/use-cases/GetActiveCycleSnapshotUseCase.ts
 var GetActiveCycleSnapshotUseCase = class {
-  constructor(dataStore, cycleService = new CycleService()) {
+  constructor(dataStore, cycleService = new CycleService(), progressService = new ItemProgressService()) {
     this.dataStore = dataStore;
     this.cycleService = cycleService;
+    this.progressService = progressService;
     this.guard = new ActiveContestGuard(dataStore);
   }
   async execute() {
@@ -843,12 +962,24 @@ var GetActiveCycleSnapshotUseCase = class {
       contestSubjects,
       currentState.currentSubjectId ?? void 0
     );
+    const subjectForNextItem = currentSubject ?? nextSubject;
+    const subjectItems = data.studyItems.filter(
+      (item) => item.subjectId === subjectForNextItem?.id
+    );
+    const isCompleted = this.progressService.buildCompletionPredicate(
+      subjectItems,
+      data.studySessions
+    );
     return {
       contestId: activeContestId,
       currentSubject,
       nextSubject,
       currentItemId: currentState.currentItemId,
-      nextItemId: currentSubject ? this.cycleService.getNextItemId(currentSubject, currentState.currentItemId ?? void 0) : null
+      nextItemId: subjectForNextItem ? this.cycleService.getNextItemId(
+        subjectForNextItem,
+        currentSubject ? currentState.currentItemId ?? void 0 : void 0,
+        isCompleted
+      ) : null
     };
   }
 };
@@ -925,9 +1056,23 @@ var RegisterStudySessionUseCase = class {
     if (input.topicId) {
       await this.topicRepository.findById(input.topicId);
     }
-    await this.sessionRepository.create(input);
-    await this.updateTopicQuestionNotebookStats(input);
-    return input;
+    const session = new StudySession(
+      input.id,
+      input.contestId,
+      input.type,
+      input.studiedAt,
+      input.subjectId,
+      input.studyItemId,
+      input.topicId,
+      input.phase,
+      input.reference,
+      input.pagesOrCount,
+      input.correctAnswers,
+      input.completed
+    );
+    await this.sessionRepository.create(session);
+    await this.updateTopicQuestionNotebookStats(session);
+    return session;
   }
   async updateTopicQuestionNotebookStats(session) {
     if (session.type !== "questions" || !session.topicId) {
@@ -937,12 +1082,16 @@ var RegisterStudySessionUseCase = class {
       if (!topic.questionNotebook) {
         return topic;
       }
+      const currentSolved = topic.questionNotebook.solvedQuestions ?? 0;
+      const currentCorrect = topic.questionNotebook.correctAnswers ?? 0;
+      const addedSolved = session.pagesOrCount ?? 0;
+      const addedCorrect = session.correctAnswers ?? 0;
       return {
         ...topic,
         questionNotebook: {
           ...topic.questionNotebook,
-          solvedQuestions: topic.questionNotebook.solvedQuestions + (session.pagesOrCount ?? 0),
-          correctAnswers: topic.questionNotebook.correctAnswers + (session.correctAnswers ?? 0)
+          solvedQuestions: currentSolved + addedSolved,
+          correctAnswers: currentCorrect + addedCorrect
         }
       };
     });
@@ -1024,6 +1173,432 @@ var UpdateSubjectConfigurationUseCase = class {
   }
 };
 
+// src/application/use-cases/LinkQuestionNotebookUseCase.ts
+var LinkQuestionNotebookUseCase = class {
+  constructor(dataStore) {
+    this.dataStore = dataStore;
+    this.topicRepository = new EntityRepository(dataStore, "topics");
+  }
+  async execute(input) {
+    const validation = new LinkQuestionNotebookValidator().validate(input);
+    if (!validation.valid) {
+      throw new ValidationError(validation.errors.join(", "));
+    }
+    return await this.topicRepository.update(input.topicId, (topic) => ({
+      ...topic,
+      questionNotebook: input.questionNotebook
+    }));
+  }
+};
+
+// src/infrastructure/persistence/Seeder.ts
+var DEMO_CONTESTS = [
+  {
+    id: "tce-sp-2026",
+    name: "TCE-SP Auditor 2026",
+    wall: {
+      noticeLabel: "Edital TCE-SP Auditor 2026",
+      noticeUrl: "https://www.tcesp.org.br",
+      examLabel: "Prova TCE-SP 2023",
+      examUrl: "https://www.tcesp.org.br",
+      notes: "Priorizar Portugu\xEAs, Constitucional e Controle Externo. Meta: 80 quest\xF5es por dia."
+    },
+    subjects: [
+      {
+        id: "tce-portuguese",
+        name: "Portugu\xEAs",
+        plannedStudyMinutes: 90,
+        items: [
+          { title: "Interpreta\xE7\xE3o de textos", weight: 3, questionCount: 60, totalPages: 110 },
+          { title: "Sintaxe", weight: 2, questionCount: 45, totalPages: 85 }
+        ],
+        topics: [
+          {
+            id: "tce-portuguese-interpretation",
+            name: "Compreens\xE3o e interpreta\xE7\xE3o",
+            notebookName: "Tec - Portugu\xEAs TCE",
+            notebookUrl: "https://tec.example.com/tce-portugues"
+          },
+          {
+            id: "tce-portuguese-syntax",
+            name: "Concord\xE2ncia e reg\xEAncia",
+            notebookName: "QConcursos - Sintaxe TCE",
+            notebookUrl: "https://qconcursos.example.com/tce-sintaxe"
+          }
+        ],
+        sessions: [
+          { item: 0, topic: 0, type: "pdf", date: "2026-06-01", count: 28 },
+          { item: 0, topic: 0, type: "questions", date: "2026-06-01", count: 40, correct: 34 },
+          { item: 1, topic: 1, type: "pdf", date: "2026-06-03", count: 22 },
+          { item: 1, topic: 1, type: "questions", date: "2026-06-04", count: 35, correct: 30 }
+        ]
+      },
+      {
+        id: "tce-constitutional",
+        name: "Direito Constitucional",
+        plannedStudyMinutes: 100,
+        items: [
+          { title: "Direitos fundamentais", weight: 3, questionCount: 50, totalPages: 95 },
+          { title: "Organiza\xE7\xE3o do Estado", weight: 2, questionCount: 35, totalPages: 70 }
+        ],
+        topics: [
+          {
+            id: "tce-constitutional-rights",
+            name: "Direitos e garantias fundamentais",
+            notebookName: "Tec - Direitos Fundamentais",
+            notebookUrl: "https://tec.example.com/direitos-fundamentais"
+          },
+          {
+            id: "tce-constitutional-state",
+            name: "Organiza\xE7\xE3o pol\xEDtico-administrativa",
+            notebookName: "QConcursos - Organiza\xE7\xE3o do Estado",
+            notebookUrl: "https://qconcursos.example.com/organizacao-estado"
+          }
+        ],
+        sessions: [
+          { item: 0, topic: 0, type: "pdf", date: "2026-06-02", count: 24 },
+          { item: 0, topic: 0, type: "questions", date: "2026-06-02", count: 30, correct: 25 },
+          { item: 1, topic: 1, type: "video", date: "2026-06-05", count: 1 },
+          { item: 1, topic: 1, type: "questions", date: "2026-06-06", count: 25, correct: 20 }
+        ]
+      },
+      {
+        id: "tce-external-control",
+        name: "Controle Externo",
+        plannedStudyMinutes: 80,
+        items: [
+          { title: "Tribunais de Contas", weight: 3, questionCount: 45, totalPages: 90 },
+          { title: "Fiscaliza\xE7\xE3o cont\xE1bil", weight: 2, questionCount: 30, totalPages: 65 }
+        ],
+        topics: [
+          {
+            id: "tce-control-courts",
+            name: "Compet\xEAncias dos Tribunais de Contas",
+            notebookName: "Tec - Controle Externo",
+            notebookUrl: "https://tec.example.com/controle-externo"
+          },
+          {
+            id: "tce-control-audit",
+            name: "Auditoria governamental",
+            notebookName: "Estrat\xE9gia - Auditoria TCE",
+            notebookUrl: "https://estrategia.example.com/auditoria-tce"
+          }
+        ],
+        sessions: [
+          { item: 0, topic: 0, type: "pdf", date: "2026-06-07", count: 18 },
+          { item: 0, topic: 0, type: "questions", date: "2026-06-07", count: 20, correct: 17 },
+          { item: 1, topic: 1, type: "pdf", date: "2026-06-08", count: 20 },
+          { item: 1, topic: 1, type: "questions", date: "2026-06-08", count: 18, correct: 14 }
+        ]
+      }
+    ]
+  },
+  {
+    id: "sefaz-sp-2026",
+    name: "SEFAZ-SP Fiscal 2026",
+    wall: {
+      noticeLabel: "Edital SEFAZ-SP Fiscal 2026",
+      noticeUrl: "https://portal.fazenda.sp.gov.br",
+      examLabel: "Prova SEFAZ-SP 2013",
+      examUrl: "https://portal.fazenda.sp.gov.br",
+      notes: "Ciclo pesado em legisla\xE7\xE3o tribut\xE1ria, contabilidade e matem\xE1tica financeira."
+    },
+    subjects: [
+      {
+        id: "sefaz-tax-law",
+        name: "Legisla\xE7\xE3o Tribut\xE1ria",
+        plannedStudyMinutes: 120,
+        items: [
+          { title: "ICMS paulista", weight: 4, questionCount: 80, totalPages: 140 },
+          { title: "Cr\xE9dito tribut\xE1rio", weight: 3, questionCount: 55, totalPages: 100 }
+        ],
+        topics: [
+          {
+            id: "sefaz-tax-icms",
+            name: "Hip\xF3teses de incid\xEAncia do ICMS",
+            notebookName: "Tec - ICMS SP",
+            notebookUrl: "https://tec.example.com/icms-sp"
+          },
+          {
+            id: "sefaz-tax-credit",
+            name: "Lan\xE7amento e cr\xE9dito tribut\xE1rio",
+            notebookName: "QConcursos - Cr\xE9dito Tribut\xE1rio",
+            notebookUrl: "https://qconcursos.example.com/credito-tributario"
+          }
+        ],
+        sessions: [
+          { item: 0, topic: 0, type: "pdf", date: "2026-06-01", count: 35 },
+          { item: 0, topic: 0, type: "questions", date: "2026-06-01", count: 45, correct: 36 },
+          { item: 1, topic: 1, type: "pdf", date: "2026-06-04", count: 30 },
+          { item: 1, topic: 1, type: "questions", date: "2026-06-05", count: 35, correct: 28 }
+        ]
+      },
+      {
+        id: "sefaz-accounting",
+        name: "Contabilidade",
+        plannedStudyMinutes: 90,
+        items: [
+          { title: "Demonstra\xE7\xF5es cont\xE1beis", weight: 3, questionCount: 60, totalPages: 120 },
+          { title: "An\xE1lise de balan\xE7os", weight: 2, questionCount: 40, totalPages: 85 }
+        ],
+        topics: [
+          {
+            id: "sefaz-accounting-statements",
+            name: "Balan\xE7o patrimonial e DRE",
+            notebookName: "Tec - Contabilidade Geral",
+            notebookUrl: "https://tec.example.com/contabilidade-geral"
+          },
+          {
+            id: "sefaz-accounting-analysis",
+            name: "\xCDndices financeiros",
+            notebookName: "QConcursos - An\xE1lise de Balan\xE7os",
+            notebookUrl: "https://qconcursos.example.com/analise-balancos"
+          }
+        ],
+        sessions: [
+          { item: 0, topic: 0, type: "pdf", date: "2026-06-02", count: 26 },
+          { item: 0, topic: 0, type: "questions", date: "2026-06-02", count: 30, correct: 24 },
+          { item: 1, topic: 1, type: "video", date: "2026-06-06", count: 1 },
+          { item: 1, topic: 1, type: "questions", date: "2026-06-07", count: 25, correct: 21 }
+        ]
+      },
+      {
+        id: "sefaz-finance",
+        name: "Matem\xE1tica Financeira",
+        plannedStudyMinutes: 70,
+        items: [
+          { title: "Juros compostos", weight: 3, questionCount: 40, totalPages: 60 },
+          { title: "Sistemas de amortiza\xE7\xE3o", weight: 2, questionCount: 35, totalPages: 70 }
+        ],
+        topics: [
+          {
+            id: "sefaz-finance-interest",
+            name: "Taxas equivalentes",
+            notebookName: "Tec - Matem\xE1tica Financeira",
+            notebookUrl: "https://tec.example.com/matematica-financeira"
+          },
+          {
+            id: "sefaz-finance-amortization",
+            name: "Tabela Price e SAC",
+            notebookName: "Estrat\xE9gia - Amortiza\xE7\xE3o",
+            notebookUrl: "https://estrategia.example.com/amortizacao"
+          }
+        ],
+        sessions: [
+          { item: 0, topic: 0, type: "pdf", date: "2026-06-03", count: 18 },
+          { item: 0, topic: 0, type: "questions", date: "2026-06-03", count: 25, correct: 19 },
+          { item: 1, topic: 1, type: "pdf", date: "2026-06-08", count: 20 },
+          { item: 1, topic: 1, type: "questions", date: "2026-06-08", count: 20, correct: 15 }
+        ]
+      }
+    ]
+  },
+  {
+    id: "trt-2-2026",
+    name: "TRT-2 Analista 2026",
+    wall: {
+      noticeLabel: "Edital TRT-2 Analista 2026",
+      noticeUrl: "https://www.trt2.jus.br",
+      examLabel: "Prova TRT-2 2018",
+      examUrl: "https://www.trt2.jus.br",
+      notes: "Manter recorr\xEAncia alta em trabalho, processo do trabalho e l\xEDngua portuguesa."
+    },
+    subjects: [
+      {
+        id: "trt-labor-law",
+        name: "Direito do Trabalho",
+        plannedStudyMinutes: 100,
+        items: [
+          { title: "Contrato de trabalho", weight: 3, questionCount: 55, totalPages: 105 },
+          { title: "Jornada e remunera\xE7\xE3o", weight: 3, questionCount: 50, totalPages: 90 }
+        ],
+        topics: [
+          {
+            id: "trt-labor-contract",
+            name: "V\xEDnculo empregat\xEDcio",
+            notebookName: "Tec - Direito do Trabalho",
+            notebookUrl: "https://tec.example.com/direito-trabalho"
+          },
+          {
+            id: "trt-labor-hours",
+            name: "Horas extras e adicionais",
+            notebookName: "QConcursos - Jornada",
+            notebookUrl: "https://qconcursos.example.com/jornada"
+          }
+        ],
+        sessions: [
+          { item: 0, topic: 0, type: "pdf", date: "2026-06-01", count: 30 },
+          { item: 0, topic: 0, type: "questions", date: "2026-06-01", count: 35, correct: 29 },
+          { item: 1, topic: 1, type: "pdf", date: "2026-06-05", count: 25 },
+          { item: 1, topic: 1, type: "questions", date: "2026-06-06", count: 30, correct: 24 }
+        ]
+      },
+      {
+        id: "trt-labor-procedure",
+        name: "Processo do Trabalho",
+        plannedStudyMinutes: 90,
+        items: [
+          { title: "Recursos trabalhistas", weight: 3, questionCount: 45, totalPages: 88 },
+          { title: "Execu\xE7\xE3o trabalhista", weight: 2, questionCount: 35, totalPages: 72 }
+        ],
+        topics: [
+          {
+            id: "trt-procedure-appeals",
+            name: "Recurso ordin\xE1rio e revista",
+            notebookName: "Tec - Processo do Trabalho",
+            notebookUrl: "https://tec.example.com/processo-trabalho"
+          },
+          {
+            id: "trt-procedure-execution",
+            name: "Liquida\xE7\xE3o e execu\xE7\xE3o",
+            notebookName: "Estrat\xE9gia - Execu\xE7\xE3o Trabalhista",
+            notebookUrl: "https://estrategia.example.com/execucao-trabalhista"
+          }
+        ],
+        sessions: [
+          { item: 0, topic: 0, type: "pdf", date: "2026-06-02", count: 22 },
+          { item: 0, topic: 0, type: "questions", date: "2026-06-02", count: 25, correct: 20 },
+          { item: 1, topic: 1, type: "video", date: "2026-06-07", count: 1 },
+          { item: 1, topic: 1, type: "questions", date: "2026-06-08", count: 20, correct: 16 }
+        ]
+      },
+      {
+        id: "trt-portuguese",
+        name: "Portugu\xEAs",
+        plannedStudyMinutes: 70,
+        items: [
+          { title: "Reda\xE7\xE3o oficial", weight: 2, questionCount: 30, totalPages: 55 },
+          { title: "Pontua\xE7\xE3o", weight: 2, questionCount: 35, totalPages: 60 }
+        ],
+        topics: [
+          {
+            id: "trt-portuguese-official",
+            name: "Comunica\xE7\xE3o oficial",
+            notebookName: "Tec - Reda\xE7\xE3o Oficial",
+            notebookUrl: "https://tec.example.com/redacao-oficial"
+          },
+          {
+            id: "trt-portuguese-punctuation",
+            name: "Uso da v\xEDrgula",
+            notebookName: "QConcursos - Pontua\xE7\xE3o",
+            notebookUrl: "https://qconcursos.example.com/pontuacao"
+          }
+        ],
+        sessions: [
+          { item: 0, topic: 0, type: "pdf", date: "2026-06-03", count: 16 },
+          { item: 0, topic: 0, type: "questions", date: "2026-06-03", count: 20, correct: 17 },
+          { item: 1, topic: 1, type: "pdf", date: "2026-06-09", count: 18 },
+          { item: 1, topic: 1, type: "questions", date: "2026-06-09", count: 20, correct: 16 }
+        ]
+      }
+    ]
+  }
+];
+async function seedTceSpDemo(dataStore) {
+  const createContest = new CreateContestUseCase(dataStore);
+  const createSubject = new CreateSubjectUseCase(dataStore);
+  const createItem = new CreateStudyItemUseCase(dataStore);
+  const createTopic = new CreateTopicUseCase(dataStore);
+  const linkNotebook = new LinkQuestionNotebookUseCase(dataStore);
+  const updateWall = new UpdateContestWallUseCase(dataStore);
+  const registerSession = new RegisterStudySessionUseCase(dataStore);
+  const setActive = new SetActiveContestUseCase(dataStore);
+  const seededContests = [];
+  for (const contestSpec of DEMO_CONTESTS) {
+    const contest = await createContest.execute({ id: contestSpec.id, name: contestSpec.name });
+    const seededSubjects = [];
+    for (const subjectSpec of contestSpec.subjects) {
+      const subject = await createSubject.execute({
+        id: subjectSpec.id,
+        contestId: contest.id,
+        name: subjectSpec.name,
+        plannedStudyMinutes: subjectSpec.plannedStudyMinutes
+      });
+      const items = [];
+      for (let index = 0; index < subjectSpec.items.length; index += 1) {
+        const itemSpec = subjectSpec.items[index];
+        items.push(
+          await createItem.execute({
+            id: `${subject.id}-item-${index + 1}`,
+            subjectId: subject.id,
+            title: itemSpec.title,
+            weight: itemSpec.weight,
+            questionCount: itemSpec.questionCount,
+            totalPages: itemSpec.totalPages
+          })
+        );
+      }
+      const topics = [];
+      for (let index = 0; index < subjectSpec.topics.length; index += 1) {
+        const topicSpec = subjectSpec.topics[index];
+        const topic = await createTopic.execute({
+          id: topicSpec.id,
+          subjectId: subject.id,
+          name: topicSpec.name,
+          order: index + 1
+        });
+        const linkedTopic = await linkNotebook.execute({
+          topicId: topic.id,
+          questionNotebook: {
+            id: `${topic.id}-notebook`,
+            name: topicSpec.notebookName,
+            url: topicSpec.notebookUrl,
+            solvedQuestions: 0,
+            correctAnswers: 0
+          }
+        });
+        topics.push(linkedTopic);
+      }
+      for (let index = 0; index < subjectSpec.sessions.length; index += 1) {
+        const session = subjectSpec.sessions[index];
+        await registerSession.execute({
+          id: `${subject.id}-session-${index + 1}`,
+          contestId: contest.id,
+          subjectId: subject.id,
+          studyItemId: items[session.item]?.id,
+          topicId: topics[session.topic]?.id,
+          type: session.type,
+          studiedAt: `${session.date}T10:00:00.000Z`,
+          pagesOrCount: session.count,
+          correctAnswers: session.correct,
+          completed: true
+        });
+      }
+      seededSubjects.push({
+        id: subject.id,
+        name: subject.name,
+        items,
+        topics
+      });
+    }
+    await updateWall.execute({
+      contestId: contest.id,
+      wall: {
+        noticeLinks: [
+          { id: `${contest.id}-notice`, label: contestSpec.wall.noticeLabel, url: contestSpec.wall.noticeUrl }
+        ],
+        examLinks: [
+          { id: `${contest.id}-exam`, label: contestSpec.wall.examLabel, url: contestSpec.wall.examUrl }
+        ],
+        subjectSnapshots: seededSubjects.map((subject, index) => ({
+          subjectId: subject.id,
+          weight: contestSpec.subjects[index]?.items.reduce((total, item) => total + item.weight, 0) ?? 1,
+          score: 8 - index * 0.5,
+          targetItems: subject.items.map((item) => item.id)
+        })),
+        notes: contestSpec.wall.notes
+      }
+    });
+    seededContests.push({
+      id: contest.id,
+      name: contest.name,
+      subjects: seededSubjects
+    });
+  }
+  await setActive.execute({ contestId: DEMO_CONTESTS[0].id });
+  return seededContests;
+}
+
 // src/ui/commands/registerCommands.ts
 function registerCommands(plugin, dataStore) {
   const createContest = new CreateContestUseCase(dataStore);
@@ -1041,7 +1616,7 @@ function registerCommands(plugin, dataStore) {
   const setSubjectActiveState = new SetSubjectActiveStateUseCase(dataStore);
   const updateSubjectConfiguration = new UpdateSubjectConfigurationUseCase(dataStore);
   plugin.addCommand({
-    id: "corvo-show-active-contest",
+    id: "leif-show-active-contest",
     name: "Show active contest",
     callback: async () => {
       const data = await dataStore.load();
@@ -1050,97 +1625,33 @@ function registerCommands(plugin, dataStore) {
     }
   });
   plugin.addCommand({
-    id: "corvo-seed-demo-data",
+    id: "leif-seed-demo-data",
     name: "Seed demo data",
     callback: async () => {
       const data = await dataStore.load();
       if (data.contests.length > 0) {
-        new import_obsidian.Notice("Corvo already has data. Demo seed skipped.");
+        new import_obsidian.Notice("Leif already has data. Demo seed skipped.");
         return;
       }
-      await createContest.execute({ id: "demo-trt", name: "TRT Demo" });
-      await createContest.execute({ id: "demo-sefaz", name: "SEFAZ Demo" });
-      await createSubject.execute({
-        id: "subject-portuguese",
-        contestId: "demo-trt",
-        name: "Portuguese",
-        plannedStudyMinutes: 60
-      });
-      await createSubject.execute({
-        id: "subject-constitutional-law",
-        contestId: "demo-trt",
-        name: "Constitutional Law",
-        plannedStudyMinutes: 45
-      });
-      await createSubject.execute({
-        id: "subject-tax-law",
-        contestId: "demo-sefaz",
-        name: "Tax Law",
-        plannedStudyMinutes: 50
-      });
-      await createStudyItem.execute({
-        id: "item-portuguese-1",
-        subjectId: "subject-portuguese",
-        title: "Sintaxe"
-      });
-      await createStudyItem.execute({
-        id: "item-portuguese-2",
-        subjectId: "subject-portuguese",
-        title: "Pontua\xE7\xE3o"
-      });
-      await createTopic.execute({
-        id: "topic-portuguese-1",
-        subjectId: "subject-portuguese",
-        name: "Ora\xE7\xF5es subordinadas"
-      });
-      await updateContestWall.execute({
-        contestId: "demo-trt",
-        wall: {
-          noticeLinks: [{ id: "notice-demo", label: "Edital", url: "https://example.com/edital" }],
-          examLinks: [{ id: "exam-demo", label: "Prova anterior", url: "https://example.com/prova" }],
-          subjectSnapshots: [{ subjectId: "subject-portuguese", weight: 2, score: 10 }],
-          notes: "Dados de demonstra\xE7\xE3o do Corvo."
-        }
-      });
-      await updateContestWall.execute({
-        contestId: "demo-sefaz",
-        wall: {
-          noticeLinks: [{ id: "notice-sefaz", label: "Edital", url: "https://example.com/sefaz-edital" }],
-          examLinks: [],
-          subjectSnapshots: [{ subjectId: "subject-tax-law", weight: 3, score: 15 }],
-          notes: "Foco em legisla\xE7\xE3o tribut\xE1ria."
-        }
-      });
-      await registerStudySession.execute({
-        id: "session-demo-1",
-        contestId: "demo-trt",
-        subjectId: "subject-portuguese",
-        topicId: "topic-portuguese-1",
-        type: "pdf",
-        studiedAt: (/* @__PURE__ */ new Date()).toISOString(),
-        pagesOrCount: 25,
-        completed: true
-      });
-      await registerStudySession.execute({
-        id: "session-demo-2",
-        contestId: "demo-sefaz",
-        subjectId: "subject-tax-law",
-        type: "questions",
-        studiedAt: (/* @__PURE__ */ new Date()).toISOString(),
-        pagesOrCount: 10,
-        correctAnswers: 8,
-        completed: true
-      });
-      new import_obsidian.Notice("Corvo demo data created.");
+      await seedTceSpDemo(dataStore);
+      new import_obsidian.Notice("Leif demo data created.");
     }
   });
   plugin.addCommand({
-    id: "corvo-switch-active-contest",
+    id: "leif-switch-active-contest",
     name: "Switch active contest",
     callback: async () => {
       const data = await dataStore.load();
-      if (data.contests.length < 2) {
+      if (data.contests.length === 0) {
         new import_obsidian.Notice("At least two contests are required to switch the active contest.");
+        return;
+      }
+      if (data.contests.length === 1 && data.activeContestId) {
+        await dataStore.save({
+          ...data,
+          activeContestId: null
+        });
+        new import_obsidian.Notice("Active contest switched to: none");
         return;
       }
       const currentIndex = data.contests.findIndex((contest) => contest.id === data.activeContestId);
@@ -1150,7 +1661,7 @@ function registerCommands(plugin, dataStore) {
     }
   });
   plugin.addCommand({
-    id: "corvo-show-active-subjects",
+    id: "leif-show-active-subjects",
     name: "Show active contest subjects",
     callback: async () => {
       const subjects = await listSubjectsForActiveContest.execute();
@@ -1168,7 +1679,7 @@ function registerCommands(plugin, dataStore) {
     }
   });
   plugin.addCommand({
-    id: "corvo-reorder-active-subjects",
+    id: "leif-reorder-active-subjects",
     name: "Reorder active contest subjects",
     callback: async () => {
       const data = await dataStore.load();
@@ -1185,7 +1696,7 @@ function registerCommands(plugin, dataStore) {
     }
   });
   plugin.addCommand({
-    id: "corvo-toggle-first-subject-active",
+    id: "leif-toggle-first-subject-active",
     name: "Toggle first subject active state",
     callback: async () => {
       const subjects = await listSubjectsForActiveContest.execute();
@@ -1202,7 +1713,7 @@ function registerCommands(plugin, dataStore) {
     }
   });
   plugin.addCommand({
-    id: "corvo-update-first-subject-config",
+    id: "leif-update-first-subject-config",
     name: "Update first subject configuration",
     callback: async () => {
       const subjects = await listSubjectsForActiveContest.execute();
@@ -1222,7 +1733,7 @@ function registerCommands(plugin, dataStore) {
     }
   });
   plugin.addCommand({
-    id: "corvo-advance-cycle",
+    id: "leif-advance-cycle",
     name: "Advance cycle",
     callback: async () => {
       try {
@@ -1234,7 +1745,7 @@ function registerCommands(plugin, dataStore) {
     }
   });
   plugin.addCommand({
-    id: "corvo-show-cycle-snapshot",
+    id: "leif-show-cycle-snapshot",
     name: "Show cycle snapshot",
     callback: async () => {
       try {
@@ -1254,7 +1765,7 @@ function registerCommands(plugin, dataStore) {
     }
   });
   plugin.addCommand({
-    id: "corvo-show-active-contest-wall",
+    id: "leif-show-active-contest-wall",
     name: "Show active contest wall",
     callback: async () => {
       const data = await dataStore.load();
@@ -1269,7 +1780,7 @@ function registerCommands(plugin, dataStore) {
     }
   });
   plugin.addCommand({
-    id: "corvo-show-summary",
+    id: "leif-show-summary",
     name: "Show active contest summary",
     callback: async () => {
       try {
@@ -1289,7 +1800,7 @@ function registerCommands(plugin, dataStore) {
     }
   });
   plugin.addCommand({
-    id: "corvo-register-demo-question-session",
+    id: "leif-register-demo-question-session",
     name: "Register demo question session",
     callback: async () => {
       const data = await dataStore.load();
@@ -1319,7 +1830,7 @@ function registerCommands(plugin, dataStore) {
     }
   });
   plugin.addCommand({
-    id: "corvo-register-demo-video-session",
+    id: "leif-register-demo-video-session",
     name: "Register demo video session",
     callback: async () => {
       const data = await dataStore.load();
@@ -1345,19 +1856,16 @@ function registerCommands(plugin, dataStore) {
     }
   });
   plugin.addCommand({
-    id: "corvo-reset-demo-data",
+    id: "leif-reset-demo-data",
     name: "Reset plugin data",
     callback: async () => {
-      await dataStore.save(createDefaultCorvoPluginData());
-      new import_obsidian.Notice("Corvo data reset.");
+      await dataStore.save(createDefaultLeifPluginData());
+      new import_obsidian.Notice("Leif data reset.");
     }
   });
 }
 
-// src/ui/settings/CorvoSettingTab.ts
-var import_obsidian10 = require("obsidian");
-
-// src/ui/view/CorvoView.ts
+// src/ui/view/LeifView.ts
 var import_obsidian9 = require("obsidian");
 
 // src/application/use-cases/DeleteContestUseCase.ts
@@ -1444,7 +1952,7 @@ var DomHelpers = class {
    * @param className - CSS class for the icon container
    * @returns HTMLElement containing the icon
    */
-  static createIcon(iconKey, className = "corvo-icon") {
+  static createIcon(iconKey, className = "leif-icon") {
     const container = this.createElement("span", className);
     const iconName = ICON_NAMES[iconKey] || iconKey;
     if (typeof import_obsidian2.setIcon === "function") {
@@ -1459,11 +1967,11 @@ var DomHelpers = class {
    * Creates text with an optional icon.
    */
   static createTextWithIcon(text, icon) {
-    const wrapper = this.createElement("span", "corvo-text-with-icon");
+    const wrapper = this.createElement("span", "leif-text-with-icon");
     if (icon) {
       wrapper.appendChild(this.createIcon(icon));
     }
-    const label = this.createElement("span", "corvo-text-label");
+    const label = this.createElement("span", "leif-text-label");
     label.textContent = text;
     wrapper.appendChild(label);
     return wrapper;
@@ -1472,7 +1980,7 @@ var DomHelpers = class {
    * Creates an H1 heading with optional icon.
    */
   static createHeading(text, icon) {
-    const heading = this.createElement("h1", "corvo-title");
+    const heading = this.createElement("h1", "leif-title");
     heading.appendChild(this.createTextWithIcon(text, icon));
     return heading;
   }
@@ -1480,7 +1988,7 @@ var DomHelpers = class {
    * Creates an H2 section title with optional icon.
    */
   static createSectionTitle(text, icon) {
-    const heading = this.createElement("h2", "corvo-section-title");
+    const heading = this.createElement("h2", "leif-section-title");
     heading.appendChild(this.createTextWithIcon(text, icon));
     return heading;
   }
@@ -1488,7 +1996,7 @@ var DomHelpers = class {
    * Creates an H3 section subtitle with optional icon.
    */
   static createSectionSubtitle(text, icon) {
-    const heading = this.createElement("h3", "corvo-section-subtitle");
+    const heading = this.createElement("h3", "leif-section-subtitle");
     heading.appendChild(this.createTextWithIcon(text, icon));
     return heading;
   }
@@ -1496,7 +2004,7 @@ var DomHelpers = class {
    * Creates a paragraph element.
    */
   static createParagraph(text) {
-    const paragraph = this.createElement("p", "corvo-paragraph");
+    const paragraph = this.createElement("p", "leif-paragraph");
     paragraph.textContent = text;
     return paragraph;
   }
@@ -1512,7 +2020,7 @@ var DomHelpers = class {
    * Creates a badge with optional icon.
    */
   static createBadge(text, icon) {
-    const badge = this.createElement("span", "corvo-badge");
+    const badge = this.createElement("span", "leif-badge");
     badge.appendChild(this.createTextWithIcon(text, icon));
     return badge;
   }
@@ -1520,7 +2028,7 @@ var DomHelpers = class {
    * Creates a card section with title and optional icon.
    */
   static createCard(title, icon) {
-    const card = this.createElement("section", "corvo-card");
+    const card = this.createElement("section", "leif-card");
     card.appendChild(this.createSectionSubtitle(title, icon));
     return card;
   }
@@ -1528,7 +2036,7 @@ var DomHelpers = class {
    * Creates an empty state message.
    */
   static createEmptyState(title, description) {
-    const wrapper = this.createElement("section", "corvo-empty-state corvo-card");
+    const wrapper = this.createElement("section", "leif-empty-state leif-card");
     wrapper.append(this.createStrong(title), this.createParagraph(description));
     return wrapper;
   }
@@ -1540,7 +2048,7 @@ var DomHelpers = class {
     input.type = type;
     input.placeholder = placeholder;
     input.value = value;
-    input.className = "corvo-input";
+    input.className = "leif-input";
     return input;
   }
   /**
@@ -1550,7 +2058,7 @@ var DomHelpers = class {
    */
   static createSelect(options, selectedValue) {
     const select = document.createElement("select");
-    select.className = "corvo-select";
+    select.className = "leif-select";
     options.forEach(([value, label]) => {
       const option = document.createElement("option");
       option.value = value;
@@ -1569,15 +2077,15 @@ var DomHelpers = class {
     const textarea = document.createElement("textarea");
     textarea.placeholder = placeholder;
     textarea.value = value;
-    textarea.className = "corvo-textarea";
+    textarea.className = "leif-textarea";
     return textarea;
   }
   /**
    * Creates a label for a form control.
    */
   static createLabel(text, control) {
-    const label = this.createElement("label", "corvo-label");
-    const span = this.createElement("span", "corvo-label-text");
+    const label = this.createElement("label", "leif-label");
+    const span = this.createElement("span", "leif-label-text");
     span.textContent = text;
     label.append(span, control);
     return label;
@@ -1586,8 +2094,8 @@ var DomHelpers = class {
    * Creates a disclosure (details/summary) element.
    */
   static createDisclosure(title, content, icon) {
-    const details = this.createElement("details", "corvo-disclosure");
-    const summary = this.createElement("summary", "corvo-disclosure-summary");
+    const details = this.createElement("details", "leif-disclosure");
+    const summary = this.createElement("summary", "leif-disclosure-summary");
     summary.appendChild(this.createTextWithIcon(title, icon));
     details.append(summary, content);
     return details;
@@ -1596,10 +2104,10 @@ var DomHelpers = class {
    * Creates a key-value row display.
    */
   static createKeyValueRow(label, value) {
-    const row = this.createElement("div", "corvo-key-value");
-    const labelEl = this.createElement("span", "corvo-key-label");
+    const row = this.createElement("div", "leif-key-value");
+    const labelEl = this.createElement("span", "leif-key-label");
     labelEl.textContent = label;
-    const valueEl = this.createElement("span", "corvo-key-value-text");
+    const valueEl = this.createElement("span", "leif-key-value-text");
     valueEl.textContent = value;
     row.append(labelEl, valueEl);
     return row;
@@ -1610,8 +2118,8 @@ var DomHelpers = class {
    * @param rows - Array of row data (each row is an array of cell content)
    */
   static createTable(headers, rows) {
-    const wrapper = this.createElement("div", "corvo-table-wrapper");
-    const table = this.createElement("table", "corvo-table");
+    const wrapper = this.createElement("div", "leif-table-wrapper");
+    const table = this.createElement("table", "leif-table");
     const thead = this.createElement("thead");
     const headerRow = this.createElement("tr");
     headers.forEach((header) => {
@@ -1645,7 +2153,7 @@ var DomHelpers = class {
   static createButton(text, options = {}) {
     const button = document.createElement("button");
     button.type = options.type || "button";
-    button.className = options.className || "corvo-button";
+    button.className = options.className || "leif-button";
     if (options.icon) {
       button.appendChild(this.createTextWithIcon(text, options.icon));
     } else {
@@ -1671,8 +2179,8 @@ var DomHelpers = class {
   static createIconButton(icon, title, options = {}) {
     const button = document.createElement("button");
     button.type = "button";
-    button.className = options.className || "corvo-icon-button";
-    button.appendChild(this.createIcon(icon, "corvo-icon-button-icon"));
+    button.className = options.className || "leif-icon-button";
+    button.appendChild(this.createIcon(icon, "leif-icon-button-icon"));
     if (options.dataset) {
       Object.entries(options.dataset).forEach(([key, value]) => {
         button.dataset[key] = value;
@@ -1692,14 +2200,14 @@ var DomHelpers = class {
    * Creates a button group container.
    */
   static createButtonGroup() {
-    return this.createElement("div", "corvo-button-group");
+    return this.createElement("div", "leif-button-group");
   }
   /**
    * Creates a form element.
    */
   static createForm(onSubmit) {
     const form = document.createElement("form");
-    form.className = "corvo-form";
+    form.className = "leif-form";
     if (onSubmit) {
       form.addEventListener("submit", (event) => {
         event.preventDefault();
@@ -1731,7 +2239,7 @@ var DomHelpers = class {
    */
   static createCompactInput(type, placeholder, value = "") {
     const input = this.createInput(type, placeholder, value);
-    input.className = "corvo-input corvo-input-compact";
+    input.className = "leif-input leif-input-compact";
     return input;
   }
   /**
@@ -1739,8 +2247,8 @@ var DomHelpers = class {
    * Returns a container with the table.
    */
   static createCrudTable(headers) {
-    const container = this.createElement("div", "corvo-table-wrapper");
-    const table = this.createElement("table", "corvo-table");
+    const container = this.createElement("div", "leif-table-wrapper");
+    const table = this.createElement("table", "leif-table");
     const thead = this.createElement("thead");
     const headerRow = this.createElement("tr");
     headers.forEach((header) => {
@@ -1759,7 +2267,7 @@ var DomHelpers = class {
    * Creates a standard action cell with edit and delete buttons.
    */
   static createCrudActions(onEdit, onDelete) {
-    const actions = this.createElement("div", "corvo-inline-actions corvo-inline-actions-compact");
+    const actions = this.createElement("div", "leif-inline-actions leif-inline-actions-compact");
     actions.appendChild(
       this.createIconButton("edit", "Editar", { onClick: onEdit })
     );
@@ -1772,7 +2280,7 @@ var DomHelpers = class {
    * Creates a form row for organizing form elements.
    */
   static createFormRow() {
-    return this.createElement("div", "corvo-form-row");
+    return this.createElement("div", "leif-form-row");
   }
   /**
    * Creates a table cell with optional text or child element.
@@ -1791,20 +2299,20 @@ var DomHelpers = class {
    * @returns Form element
    */
   static createInlineForm(title, onSubmit, onCancel) {
-    const card = this.createElement("section", "corvo-card corvo-create-form");
+    const card = this.createElement("section", "leif-card leif-create-form");
     card.appendChild(this.createSectionSubtitle(title, "add"));
     const form = this.createForm(onSubmit);
-    const actions = this.createElement("div", "corvo-form-actions");
+    const actions = this.createElement("div", "leif-form-actions");
     actions.appendChild(
       this.createButton("Cancelar", {
-        className: "corvo-button",
+        className: "leif-button",
         onClick: () => onCancel()
       })
     );
     actions.appendChild(
       this.createButton("Criar", {
         type: "submit",
-        className: "corvo-primary-button"
+        className: "leif-primary-button"
       })
     );
     card.appendChild(form);
@@ -1818,6 +2326,84 @@ var DomHelpers = class {
   static notifyError(error, fallbackMessage) {
     new import_obsidian2.Notice(error instanceof Error ? error.message : fallbackMessage);
   }
+  /**
+   * Creates a modal overlay with a centered card.
+   * Returns { open, close } functions.
+   */
+  static createModal(options) {
+    const overlay = this.createElement("div", "leif-modal-overlay");
+    const card = this.createElement("div", "leif-modal-card");
+    const header = this.createElement("div", "leif-modal-header");
+    const title = this.createElement("h3", "leif-modal-title");
+    title.textContent = options.title;
+    const closeButton = this.createIconButton("x", "Fechar", {
+      onClick: () => close()
+    });
+    header.appendChild(title);
+    header.appendChild(closeButton);
+    const body = this.createElement("div", "leif-modal-body");
+    body.appendChild(options.content);
+    const footer = this.createElement("div", "leif-modal-footer");
+    const cancelButton = this.createButton("Cancelar", {
+      className: "leif-button",
+      onClick: () => close()
+    });
+    const submitButton = this.createButton(options.submitLabel ?? "Criar", {
+      className: "leif-primary-button",
+      onClick: () => options.onSubmit()
+    });
+    footer.appendChild(cancelButton);
+    footer.appendChild(submitButton);
+    card.append(header, body, footer);
+    overlay.appendChild(card);
+    const open = () => {
+      document.body.appendChild(overlay);
+    };
+    const close = () => {
+      if (overlay.parentNode) {
+        overlay.parentNode.removeChild(overlay);
+      }
+      options.onCancel?.();
+    };
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) {
+        close();
+      }
+    });
+    return { open, close };
+  }
+  /**
+   * Creates a visual progress bar with a fill and a label.
+   * @param readed - Pages readed
+   * @param total - Total pages (optional)
+   * @returns Progress container element
+   */
+  static createProgressBar(readed, total) {
+    const container = this.createElement("div", "leif-progress-bar-container");
+    const bar = this.createElement("div", "leif-progress-bar");
+    const fill = this.createElement("div", "leif-progress-fill");
+    if (total !== void 0 && total > 0) {
+      const percentage = Math.min(100, Math.round(readed / total * 100));
+      fill.style.width = `${percentage}%`;
+      if (readed >= total) {
+        fill.classList.add("is-complete");
+      }
+      const label = this.createElement("div", "leif-progress-label");
+      const text = this.createElement("span", "leif-progress-value");
+      text.textContent = `${readed}/${total} (${percentage}%)`;
+      label.appendChild(text);
+      container.appendChild(bar);
+      container.appendChild(label);
+    } else {
+      const label = this.createElement("div", "leif-progress-label");
+      const value = this.createElement("span", "leif-progress-value");
+      value.textContent = `${readed} lido${readed === 1 ? "" : "s"}`;
+      label.appendChild(value);
+      container.appendChild(label);
+    }
+    bar.appendChild(fill);
+    return container;
+  }
 };
 
 // src/ui/view/components/ContestsTab.ts
@@ -1827,30 +2413,23 @@ var ContestsTab = class {
     this.dataStore = dataStore;
     this.onUpdate = onUpdate;
     this.editingContestId = null;
-    this.isCreatingNew = false;
     this.createContestUseCase = new CreateContestUseCase(dataStore);
     this.setActiveContestUseCase = new SetActiveContestUseCase(dataStore);
     this.updateContestUseCase = new UpdateContestUseCase(dataStore);
     this.deleteContestUseCase = new DeleteContestUseCase(dataStore);
   }
   async render(container, data) {
-    const header = DomHelpers.createElement("div", "corvo-section-header");
+    const header = DomHelpers.createElement("div", "leif-section-header");
     header.appendChild(DomHelpers.createSectionTitle("Concursos"));
     header.appendChild(
       DomHelpers.createIconButton("add", "Novo concurso", {
-        onClick: async () => {
-          this.isCreatingNew = true;
-          await this.onUpdate();
-        }
+        onClick: () => this.openCreateContestModal()
       })
     );
     container.appendChild(header);
     container.appendChild(
       DomHelpers.createParagraph("Cadastre concursos e defina qual deles est\xE1 ativo.")
     );
-    if (this.isCreatingNew) {
-      container.appendChild(this.renderCreateContestForm());
-    }
     const contestsCard = DomHelpers.createCard("Lista de concursos");
     if (data.contests.length === 0) {
       contestsCard.appendChild(DomHelpers.createParagraph("Nenhum concurso cadastrado."));
@@ -1880,7 +2459,7 @@ var ContestsTab = class {
     tr.appendChild(DomHelpers.createCell(contest.id));
     tr.appendChild(DomHelpers.createCell(contest.wall.notes ?? "\u2014"));
     tr.appendChild(DomHelpers.createCell(isActive ? "Ativo" : "Inativo"));
-    const actions = DomHelpers.createElement("div", "corvo-inline-actions corvo-inline-actions-compact");
+    const actions = DomHelpers.createElement("div", "leif-inline-actions leif-inline-actions-compact");
     if (!isActive) {
       actions.appendChild(
         DomHelpers.createIconButton("toggleOn", "Ativar", {
@@ -1925,9 +2504,13 @@ var ContestsTab = class {
   }
   renderEditableRow(contest, data) {
     const tr = DomHelpers.createElement("tr");
-    tr.className = "corvo-editing-row";
-    const nameInput = DomHelpers.createCompactInput("text", "Nome", contest.name);
-    const notesInput = DomHelpers.createCompactInput("text", "Notas", contest.wall.notes ?? "");
+    tr.className = "leif-editing-row";
+    const nameInput = DomHelpers.createTextarea("Nome", contest.name);
+    nameInput.rows = 1;
+    nameInput.className = "leif-textarea leif-textarea-inline";
+    const notesInput = DomHelpers.createTextarea("Notas", contest.wall.notes ?? "");
+    notesInput.rows = 2;
+    notesInput.className = "leif-textarea leif-textarea-inline leif-textarea-notes";
     const saveButton = DomHelpers.createIconButton("save", "Salvar", {
       onClick: async () => {
         try {
@@ -1949,7 +2532,7 @@ var ContestsTab = class {
         await this.onUpdate();
       }
     });
-    const actions = DomHelpers.createElement("div", "corvo-inline-actions corvo-inline-actions-compact");
+    const actions = DomHelpers.createElement("div", "leif-inline-actions leif-inline-actions-compact");
     actions.appendChild(saveButton);
     actions.appendChild(cancelButton);
     tr.appendChild(DomHelpers.createCell(null, nameInput));
@@ -1961,36 +2544,31 @@ var ContestsTab = class {
     tr.appendChild(actionsCell);
     return tr;
   }
-  renderCreateContestForm() {
+  openCreateContestModal() {
     const idInput = DomHelpers.createInput("text", "ID do concurso");
     const nameInput = DomHelpers.createInput("text", "Nome do concurso");
-    const form = DomHelpers.createInlineForm(
-      "Novo concurso",
-      async () => {
-        try {
-          await this.createContestUseCase.execute({
-            id: idInput.value.trim(),
-            name: nameInput.value.trim()
-          });
-          idInput.value = "";
-          nameInput.value = "";
-          this.isCreatingNew = false;
-          await this.onUpdate();
-        } catch (error) {
-          this.notifyError(error, "N\xE3o foi poss\xEDvel criar o concurso.");
-        }
-      },
-      () => {
-        this.isCreatingNew = false;
-        this.onUpdate();
+    const form = DomHelpers.createForm(async () => {
+      try {
+        await this.createContestUseCase.execute({
+          id: idInput.value.trim(),
+          name: nameInput.value.trim()
+        });
+        modal.close();
+        await this.onUpdate();
+      } catch (error) {
+        this.notifyError(error, "N\xE3o foi poss\xEDvel criar o concurso.");
       }
-    );
-    const innerForm = form.querySelector("form");
-    innerForm.append(
+    });
+    form.append(
       DomHelpers.createLabel("ID", idInput),
       DomHelpers.createLabel("Nome", nameInput)
     );
-    return form;
+    const modal = DomHelpers.createModal({
+      title: "Novo concurso",
+      content: form,
+      onSubmit: () => form.requestSubmit()
+    });
+    modal.open();
   }
   notifyError(error, fallbackMessage) {
     new import_obsidian3.Notice(error instanceof Error ? error.message : fallbackMessage);
@@ -2004,7 +2582,6 @@ var CycleTab = class {
     this.dataStore = dataStore;
     this.onUpdate = onUpdate;
     this.editingSubjectId = null;
-    this.isCreatingNew = false;
     this.createSubjectUseCase = new CreateSubjectUseCase(dataStore);
     this.listSubjectsForActiveContestUseCase = new ListSubjectsForActiveContestUseCase(dataStore);
     this.reorderSubjectsUseCase = new ReorderSubjectsUseCase(dataStore);
@@ -2015,23 +2592,17 @@ var CycleTab = class {
    * Renders the cycle tab content.
    */
   async render(container, data) {
-    const header = DomHelpers.createElement("div", "corvo-section-header");
+    const header = DomHelpers.createElement("div", "leif-section-header");
     header.appendChild(DomHelpers.createSectionTitle("Ciclo e Mat\xE9rias"));
     header.appendChild(
       DomHelpers.createIconButton("add", "Nova mat\xE9ria", {
-        onClick: async () => {
-          this.isCreatingNew = true;
-          await this.onUpdate();
-        }
+        onClick: () => this.openCreateSubjectModal(data)
       })
     );
     container.appendChild(header);
     container.appendChild(
       DomHelpers.createParagraph("Gerencie a ordem, o status, o tempo e a etapa das mat\xE9rias.")
     );
-    if (this.isCreatingNew) {
-      container.appendChild(this.renderCreateSubjectForm(data));
-    }
     const activeContest = data.contests.find((contest) => contest.id === data.activeContestId) ?? null;
     const subjects = await this.listSubjectsForActiveContestUseCase.execute();
     const card = DomHelpers.createCard(
@@ -2044,8 +2615,8 @@ var CycleTab = class {
       container.appendChild(card);
       return;
     }
-    const tableWrapper = DomHelpers.createElement("div", "corvo-table-wrapper");
-    const table = DomHelpers.createElement("table", "corvo-table");
+    const tableWrapper = DomHelpers.createElement("div", "leif-table-wrapper");
+    const table = DomHelpers.createElement("table", "leif-table");
     const thead = DomHelpers.createElement("thead");
     const headerRow = DomHelpers.createElement("tr");
     ["Ordem", "Mat\xE9ria", "Tempo", "Etapa", "Status", "A\xE7\xF5es"].forEach((header2) => {
@@ -2078,15 +2649,15 @@ var CycleTab = class {
   }
   renderEditableRow(subject, subjects, index, activeContestId) {
     const tr = DomHelpers.createElement("tr");
-    tr.className = "corvo-editing-row";
+    tr.className = "leif-editing-row";
     const minutesInput = DomHelpers.createInput(
       "number",
       "Min",
       String(subject.plannedStudyMinutes)
     );
-    minutesInput.className = "corvo-input corvo-input-compact";
+    minutesInput.className = "leif-input leif-input-compact";
     const stageInput = DomHelpers.createInput("text", "Etapa", subject.currentStage ?? "");
-    stageInput.className = "corvo-input corvo-input-compact";
+    stageInput.className = "leif-input leif-input-compact";
     const saveButton = DomHelpers.createIconButton("save", "Salvar", {
       onClick: async () => {
         try {
@@ -2108,7 +2679,7 @@ var CycleTab = class {
         await this.onUpdate();
       }
     });
-    const controls = DomHelpers.createElement("div", "corvo-inline-actions corvo-inline-actions-compact");
+    const controls = DomHelpers.createElement("div", "leif-inline-actions leif-inline-actions-compact");
     controls.appendChild(saveButton);
     controls.appendChild(cancelButton);
     if (index > 0) {
@@ -2137,46 +2708,41 @@ var CycleTab = class {
     tr.appendChild(DomHelpers.createCell(null, controls));
     return tr;
   }
-  renderCreateSubjectForm(data) {
+  openCreateSubjectModal(data) {
     const activeContestId = data.activeContestId;
     const nameInput = DomHelpers.createInput("text", "Nome da mat\xE9ria");
     const minutesInput = DomHelpers.createInput("number", "Minutos planejados", "60");
-    const form = DomHelpers.createInlineForm(
-      "Nova mat\xE9ria",
-      async () => {
-        try {
-          if (!activeContestId) {
-            throw new NoActiveContestError();
-          }
-          await this.createSubjectUseCase.execute({
-            id: `${activeContestId}-subject-${Date.now()}`,
-            contestId: activeContestId,
-            name: nameInput.value,
-            plannedStudyMinutes: Number(minutesInput.value)
-          });
-          nameInput.value = "";
-          minutesInput.value = "60";
-          this.isCreatingNew = false;
-          await this.onUpdate();
-        } catch (error) {
-          this.notifyError(error, "N\xE3o foi poss\xEDvel criar a mat\xE9ria.");
+    const form = DomHelpers.createForm(async () => {
+      try {
+        if (!activeContestId) {
+          throw new NoActiveContestError();
         }
-      },
-      () => {
-        this.isCreatingNew = false;
-        this.onUpdate();
+        await this.createSubjectUseCase.execute({
+          id: `${activeContestId}-subject-${Date.now()}`,
+          contestId: activeContestId,
+          name: nameInput.value,
+          plannedStudyMinutes: Number(minutesInput.value)
+        });
+        modal.close();
+        await this.onUpdate();
+      } catch (error) {
+        this.notifyError(error, "N\xE3o foi poss\xEDvel criar a mat\xE9ria.");
       }
-    );
-    const innerForm = form.querySelector("form");
-    innerForm.append(
+    });
+    form.append(
       DomHelpers.createLabel("Nome", nameInput),
       DomHelpers.createLabel("Minutos", minutesInput)
     );
-    return form;
+    const modal = DomHelpers.createModal({
+      title: "Nova mat\xE9ria",
+      content: form,
+      onSubmit: () => form.requestSubmit()
+    });
+    modal.open();
   }
   renderStatusCell(subject, activeContestId) {
-    const td = DomHelpers.createElement("td", "corvo-status-cell");
-    const span = DomHelpers.createElement("span", subject.isActive ? "corvo-status-active" : "corvo-status-inactive");
+    const td = DomHelpers.createElement("td", "leif-status-cell");
+    const span = DomHelpers.createElement("span", subject.isActive ? "leif-status-active" : "leif-status-inactive");
     span.textContent = subject.isActive ? "Ativa" : "Inativa";
     td.appendChild(span);
     td.addEventListener("click", async () => {
@@ -2193,7 +2759,7 @@ var CycleTab = class {
     return td;
   }
   renderEditCell(subject) {
-    const cell = DomHelpers.createElement("div", "corvo-edit-cell");
+    const cell = DomHelpers.createElement("div", "leif-edit-cell");
     cell.appendChild(
       DomHelpers.createIconButton("edit", "Editar", {
         onClick: async () => {
@@ -2230,6 +2796,78 @@ var CycleTab = class {
   }
 };
 
+// src/application/use-cases/GetActiveContestProgressDashboardUseCase.ts
+var GetActiveContestProgressDashboardUseCase = class {
+  constructor(dataStore) {
+    this.dataStore = dataStore;
+    this.guard = new ActiveContestGuard(dataStore);
+  }
+  async execute() {
+    const activeContestId = await this.guard.requireActiveContest();
+    const data = await this.dataStore.load();
+    const contestSubjects = await this.guard.getActiveContestSubjects();
+    const pdfProgressBySubject = contestSubjects.map((subject) => {
+      const subjectItems = data.studyItems.filter((studyItem) => studyItem.subjectId === subject.id).sort((left, right) => left.order - right.order);
+      const items = subjectItems.map((studyItem) => {
+        const pagesReaded = data.studySessions.filter(
+          (session) => session.contestId === activeContestId && session.type === StudySessionType.PDF && session.studyItemId === studyItem.id
+        ).reduce((total, session) => total + (session.pagesOrCount ?? 0), 0);
+        return {
+          studyItemId: studyItem.id,
+          title: studyItem.title,
+          order: studyItem.order,
+          progressCount: pagesReaded,
+          pagesReaded,
+          totalPages: studyItem.totalPages,
+          completed: studyItem.totalPages !== void 0 && studyItem.totalPages > 0 ? pagesReaded >= studyItem.totalPages : false,
+          weight: studyItem.weight,
+          questionCount: studyItem.questionCount
+        };
+      });
+      return {
+        subjectId: subject.id,
+        subjectName: subject.name,
+        items,
+        totalProgressCount: items.reduce((total, item) => total + item.progressCount, 0)
+      };
+    });
+    const questionProgressBySubject = contestSubjects.map((subject) => {
+      const groupedByDate = /* @__PURE__ */ new Map();
+      data.studySessions.filter(
+        (session) => session.contestId === activeContestId && session.subjectId === subject.id && session.type === StudySessionType.QUESTIONS
+      ).forEach((session) => {
+        const date = session.studiedAt.slice(0, 10);
+        const current = groupedByDate.get(date) ?? { questionCount: 0, correctAnswers: 0 };
+        groupedByDate.set(date, {
+          questionCount: current.questionCount + (session.pagesOrCount ?? 0),
+          correctAnswers: current.correctAnswers + (session.correctAnswers ?? 0)
+        });
+      });
+      const points = Array.from(groupedByDate.entries()).sort(([left], [right]) => left.localeCompare(right)).map(([date, point]) => ({
+        date,
+        questionCount: point.questionCount,
+        correctAnswers: point.correctAnswers,
+        accuracy: point.questionCount > 0 ? point.correctAnswers / point.questionCount : null
+      }));
+      const totalQuestionCount = points.reduce((total, point) => total + point.questionCount, 0);
+      const totalCorrectAnswers = points.reduce((total, point) => total + point.correctAnswers, 0);
+      return {
+        subjectId: subject.id,
+        subjectName: subject.name,
+        points,
+        totalQuestionCount,
+        totalCorrectAnswers,
+        totalAccuracy: totalQuestionCount > 0 ? totalCorrectAnswers / totalQuestionCount : null
+      };
+    });
+    return {
+      contestId: activeContestId,
+      pdfProgressBySubject,
+      questionProgressBySubject
+    };
+  }
+};
+
 // src/ui/view/components/DashboardTab.ts
 var DashboardTab = class {
   constructor(dataStore, onUpdate) {
@@ -2237,6 +2875,7 @@ var DashboardTab = class {
     this.onUpdate = onUpdate;
     this.getActiveCycleSnapshotUseCase = new GetActiveCycleSnapshotUseCase(dataStore);
     this.getActiveContestSummaryUseCase = new GetActiveContestSummaryUseCase(dataStore);
+    this.getActiveContestProgressDashboardUseCase = new GetActiveContestProgressDashboardUseCase(dataStore);
   }
   /**
    * Renders the dashboard tab content.
@@ -2255,46 +2894,59 @@ var DashboardTab = class {
     }
     const snapshot = await this.getActiveCycleSnapshotUseCase.execute();
     const summary = await this.getActiveContestSummaryUseCase.execute();
+    const progress = await this.getActiveContestProgressDashboardUseCase.execute();
     const itemMap = new Map(data.studyItems.map((item) => [item.id, item.title]));
+    const recommendedSubject = snapshot.currentSubject ?? snapshot.nextSubject;
+    const afterRecommendedSubject = snapshot.currentSubject && snapshot.nextSubject?.id !== snapshot.currentSubject.id ? snapshot.nextSubject : null;
+    const recommendedItemId = snapshot.currentItemId ?? snapshot.nextItemId;
+    const afterRecommendedItemId = snapshot.currentItemId ? snapshot.nextItemId : null;
     container.appendChild(DomHelpers.createSectionTitle("Dashboard"));
     container.appendChild(
       DomHelpers.createParagraph("Vis\xE3o geral do concurso ativo.")
     );
-    const cycleSection = DomHelpers.createElement("div", "corvo-grid corvo-grid-2");
+    const cycleSection = DomHelpers.createElement("div", "leif-grid leif-grid-2");
     cycleSection.appendChild(
-      this.renderCycleCard("Mat\xE9ria atual", snapshot.currentSubject?.name ?? "N\xE3o definida", "Pr\xF3xima", snapshot.nextSubject?.name ?? "\u2014")
+      this.renderCycleCard("Mat\xE9ria recomendada", recommendedSubject?.name ?? "N\xE3o definida", "Depois", afterRecommendedSubject?.name ?? "\u2014")
     );
     cycleSection.appendChild(
-      this.renderCycleCard("Item atual", itemMap.get(snapshot.currentItemId ?? "") ?? "N\xE3o definido", "Pr\xF3ximo", itemMap.get(snapshot.nextItemId ?? "") ?? "\u2014")
+      this.renderCycleCard("Item recomendado", itemMap.get(recommendedItemId ?? "") ?? "N\xE3o definido", "Seguinte", itemMap.get(afterRecommendedItemId ?? "") ?? "\u2014")
     );
     container.appendChild(cycleSection);
     const subjectSummaryCard = DomHelpers.createCard("Resumo por mat\xE9ria");
+    const progressMap = new Map(progress.pdfProgressBySubject.map((s) => [s.subjectId, s]));
+    const rows = summary.subjectSummaries.map((subjectSummary) => {
+      const subjectProgress = progressMap.get(subjectSummary.subjectId);
+      const totalPages = subjectProgress?.items.reduce((sum, item) => sum + (item.totalPages ?? 0), 0) ?? 0;
+      const readPages = subjectProgress?.totalProgressCount ?? 0;
+      const progressBar = DomHelpers.createProgressBar(readPages, totalPages > 0 ? totalPages : void 0);
+      return [
+        subjectSummary.subjectName,
+        String(subjectSummary.totalSessions),
+        progressBar,
+        String(subjectSummary.questionProgressCount),
+        subjectSummary.questionAccuracy === null ? "-" : `${Math.round(subjectSummary.questionAccuracy * 100)}%`
+      ];
+    });
     subjectSummaryCard.appendChild(
       DomHelpers.createTable(
-        ["Mat\xE9ria", "Sess\xF5es", "PDF", "Quest\xF5es", "Acerto"],
-        summary.subjectSummaries.map((subjectSummary) => [
-          subjectSummary.subjectName,
-          String(subjectSummary.totalSessions),
-          String(subjectSummary.pdfProgressCount),
-          String(subjectSummary.questionProgressCount),
-          subjectSummary.questionAccuracy === null ? "-" : `${Math.round(subjectSummary.questionAccuracy * 100)}%`
-        ])
+        ["Mat\xE9ria", "Sess\xF5es", "P\xE1ginas", "Quest\xF5es", "Acerto"],
+        rows
       )
     );
     container.appendChild(subjectSummaryCard);
   }
   renderCycleCard(label, value, nextLabel, nextValue) {
-    const card = DomHelpers.createElement("div", "corvo-card corvo-cycle-card");
-    const main = DomHelpers.createElement("div", "corvo-cycle-main");
-    const mainLabel = DomHelpers.createElement("span", "corvo-cycle-label");
+    const card = DomHelpers.createElement("div", "leif-card leif-cycle-card");
+    const main = DomHelpers.createElement("div", "leif-cycle-main");
+    const mainLabel = DomHelpers.createElement("span", "leif-cycle-label");
     mainLabel.textContent = label;
-    const mainValue = DomHelpers.createElement("span", "corvo-cycle-value");
+    const mainValue = DomHelpers.createElement("span", "leif-cycle-value");
     mainValue.textContent = value;
     main.append(mainLabel, mainValue);
-    const next = DomHelpers.createElement("div", "corvo-cycle-next");
-    const nextLabelEl = DomHelpers.createElement("span", "corvo-cycle-next-label");
+    const next = DomHelpers.createElement("div", "leif-cycle-next");
+    const nextLabelEl = DomHelpers.createElement("span", "leif-cycle-next-label");
     nextLabelEl.textContent = `${nextLabel}: `;
-    const nextValueEl = DomHelpers.createElement("span", "corvo-cycle-next-value");
+    const nextValueEl = DomHelpers.createElement("span", "leif-cycle-next-value");
     nextValueEl.textContent = nextValue;
     next.append(nextLabelEl, nextValueEl);
     card.append(main, next);
@@ -2336,75 +2988,6 @@ var DeleteStudyItemUseCase = class {
   }
 };
 
-// src/application/use-cases/GetActiveContestProgressDashboardUseCase.ts
-var GetActiveContestProgressDashboardUseCase = class {
-  constructor(dataStore) {
-    this.dataStore = dataStore;
-    this.guard = new ActiveContestGuard(dataStore);
-  }
-  async execute() {
-    const activeContestId = await this.guard.requireActiveContest();
-    const data = await this.dataStore.load();
-    const contestSubjects = await this.guard.getActiveContestSubjects();
-    const pdfProgressBySubject = contestSubjects.map((subject) => {
-      const subjectItems = data.studyItems.filter((studyItem) => studyItem.subjectId === subject.id).sort((left, right) => left.order - right.order);
-      const items = subjectItems.map((studyItem) => {
-        const progressCount = data.studySessions.filter(
-          (session) => session.contestId === activeContestId && session.type === "pdf" && session.studyItemId === studyItem.id
-        ).reduce((total, session) => total + (session.pagesOrCount ?? 0), 0);
-        return {
-          studyItemId: studyItem.id,
-          title: studyItem.title,
-          order: studyItem.order,
-          progressCount,
-          weight: studyItem.weight,
-          questionCount: studyItem.questionCount
-        };
-      });
-      return {
-        subjectId: subject.id,
-        subjectName: subject.name,
-        items,
-        totalProgressCount: items.reduce((total, item) => total + item.progressCount, 0)
-      };
-    });
-    const questionProgressBySubject = contestSubjects.map((subject) => {
-      const groupedByDate = /* @__PURE__ */ new Map();
-      data.studySessions.filter(
-        (session) => session.contestId === activeContestId && session.subjectId === subject.id && session.type === "questions"
-      ).forEach((session) => {
-        const date = session.studiedAt.slice(0, 10);
-        const current = groupedByDate.get(date) ?? { questionCount: 0, correctAnswers: 0 };
-        groupedByDate.set(date, {
-          questionCount: current.questionCount + (session.pagesOrCount ?? 0),
-          correctAnswers: current.correctAnswers + (session.correctAnswers ?? 0)
-        });
-      });
-      const points = Array.from(groupedByDate.entries()).sort(([left], [right]) => left.localeCompare(right)).map(([date, point]) => ({
-        date,
-        questionCount: point.questionCount,
-        correctAnswers: point.correctAnswers,
-        accuracy: point.questionCount > 0 ? point.correctAnswers / point.questionCount : null
-      }));
-      const totalQuestionCount = points.reduce((total, point) => total + point.questionCount, 0);
-      const totalCorrectAnswers = points.reduce((total, point) => total + point.correctAnswers, 0);
-      return {
-        subjectId: subject.id,
-        subjectName: subject.name,
-        points,
-        totalQuestionCount,
-        totalCorrectAnswers,
-        totalAccuracy: totalQuestionCount > 0 ? totalCorrectAnswers / totalQuestionCount : null
-      };
-    });
-    return {
-      contestId: activeContestId,
-      pdfProgressBySubject,
-      questionProgressBySubject
-    };
-  }
-};
-
 // src/application/use-cases/UpdateStudyItemUseCase.ts
 var UpdateStudyItemUseCase = class {
   constructor(dataStore) {
@@ -2415,16 +2998,24 @@ var UpdateStudyItemUseCase = class {
     if (!input.itemId?.trim()) {
       throw new ValidationError("itemId is required");
     }
+    if (input.title !== void 0 && !input.title.trim()) {
+      throw new ValidationError("title is required");
+    }
     if (input.weight !== void 0 && input.weight < 0) {
       throw new ValidationError("weight cannot be negative");
     }
     if (input.questionCount !== void 0 && input.questionCount < 0) {
       throw new ValidationError("questionCount cannot be negative");
     }
+    if (input.totalPages !== void 0 && input.totalPages < 0) {
+      throw new ValidationError("totalPages cannot be negative");
+    }
     return await this.itemRepository.update(input.itemId, (item) => ({
       ...item,
+      title: input.title !== void 0 ? input.title.trim() : item.title,
       weight: input.weight !== void 0 ? input.weight : item.weight,
-      questionCount: input.questionCount !== void 0 ? input.questionCount : item.questionCount
+      questionCount: input.questionCount !== void 0 ? input.questionCount : item.questionCount,
+      totalPages: input.totalPages !== void 0 ? input.totalPages : item.totalPages
     }));
   }
 };
@@ -2437,7 +3028,6 @@ var ItemsTab = class {
     this.selectedSubjectId = null;
     this.editingItemId = null;
     this.expandedItemId = null;
-    this.isCreatingNew = false;
     this.createStudyItemUseCase = new CreateStudyItemUseCase(dataStore);
     this.addStudyItemResourceReferenceUseCase = new AddStudyItemResourceReferenceUseCase(dataStore);
     this.getActiveContestProgressDashboardUseCase = new GetActiveContestProgressDashboardUseCase(dataStore);
@@ -2445,14 +3035,11 @@ var ItemsTab = class {
     this.updateStudyItemUseCase = new UpdateStudyItemUseCase(dataStore);
   }
   async render(container, data) {
-    const header = DomHelpers.createElement("div", "corvo-section-header");
+    const header = DomHelpers.createElement("div", "leif-section-header");
     header.appendChild(DomHelpers.createSectionTitle("Itens e PDFs"));
     header.appendChild(
       DomHelpers.createIconButton("add", "Novo item", {
-        onClick: async () => {
-          this.isCreatingNew = true;
-          await this.onUpdate();
-        }
+        onClick: () => this.openCreateItemModal(this.getSelectedSubject(data)?.id ?? "")
       })
     );
     container.appendChild(header);
@@ -2467,9 +3054,6 @@ var ItemsTab = class {
       return;
     }
     container.appendChild(this.renderSubjectPicker(data));
-    if (this.isCreatingNew) {
-      container.appendChild(this.renderCreateItemForm(subject.id));
-    }
     const progress = await this.getActiveContestProgressDashboardUseCase.execute();
     const subjectProgress = progress.pdfProgressBySubject.find(
       (entry) => entry.subjectId === subject.id
@@ -2486,7 +3070,7 @@ var ItemsTab = class {
       "Item",
       "Peso",
       "Quest\xF5es",
-      "PDF",
+      "P\xE1ginas",
       "A\xE7\xF5es"
     ]);
     items.forEach((item) => {
@@ -2509,20 +3093,21 @@ var ItemsTab = class {
   }
   renderDisplayRow(item, itemProgress, data) {
     const tr = DomHelpers.createElement("tr");
+    tr.dataset.itemId = item.id;
     const refs = item.resourceReferences ?? [];
     tr.appendChild(DomHelpers.createCell(String(item.order)));
     tr.appendChild(DomHelpers.createCell(item.title));
     tr.appendChild(DomHelpers.createCell(String(item.weight ?? 0)));
     tr.appendChild(DomHelpers.createCell(String(item.questionCount ?? 0)));
-    tr.appendChild(DomHelpers.createCell(String(itemProgress?.progressCount ?? 0)));
-    const actions = DomHelpers.createElement("div", "corvo-inline-actions corvo-inline-actions-compact");
+    tr.appendChild(DomHelpers.createCell(null, this.renderPagesCell(item, itemProgress)));
+    const actions = DomHelpers.createElement("div", "leif-inline-actions leif-inline-actions-compact");
     const hasRefs = refs.length > 0;
     actions.appendChild(
       DomHelpers.createIconButton(
         this.expandedItemId === item.id ? "collapse" : "expand",
         this.expandedItemId === item.id ? "Recolher" : "Expandir",
         {
-          className: `corvo-icon-button ${hasRefs ? "" : "corvo-expand-button"}`,
+          className: `leif-icon-button ${hasRefs ? "" : "leif-expand-button"}`,
           onClick: async () => {
             this.expandedItemId = this.expandedItemId === item.id ? null : item.id;
             await this.onUpdate();
@@ -2559,16 +3144,22 @@ var ItemsTab = class {
   }
   renderEditableRow(item, itemProgress, data) {
     const tr = DomHelpers.createElement("tr");
-    tr.className = "corvo-editing-row";
+    tr.className = "leif-editing-row";
+    tr.dataset.itemId = item.id;
+    const titleInput = DomHelpers.createCompactInput("text", "T\xEDtulo", item.title);
     const weightInput = DomHelpers.createCompactInput("number", "Peso", String(item.weight ?? 0));
     const questionInput = DomHelpers.createCompactInput("number", "Qts", String(item.questionCount ?? 0));
+    const totalPagesInput = DomHelpers.createCompactInput("number", "Total", String(item.totalPages ?? ""));
     const saveButton = DomHelpers.createIconButton("save", "Salvar", {
       onClick: async () => {
         try {
+          const rawPages = totalPagesInput.value.trim();
           await this.updateStudyItemUseCase.execute({
             itemId: item.id,
+            title: titleInput.value,
             weight: Number(weightInput.value),
-            questionCount: Number(questionInput.value)
+            questionCount: Number(questionInput.value),
+            totalPages: rawPages === "" ? void 0 : Number(rawPages)
           });
           this.editingItemId = null;
           await this.onUpdate();
@@ -2583,31 +3174,44 @@ var ItemsTab = class {
         await this.onUpdate();
       }
     });
-    const actions = DomHelpers.createElement("div", "corvo-inline-actions corvo-inline-actions-compact");
+    const actions = DomHelpers.createElement("div", "leif-inline-actions leif-inline-actions-compact");
     actions.appendChild(saveButton);
     actions.appendChild(cancelButton);
     tr.appendChild(DomHelpers.createCell(String(item.order)));
-    tr.appendChild(DomHelpers.createCell(item.title));
+    tr.appendChild(DomHelpers.createCell(null, titleInput));
     tr.appendChild(DomHelpers.createCell(null, weightInput));
     tr.appendChild(DomHelpers.createCell(null, questionInput));
-    tr.appendChild(DomHelpers.createCell(String(itemProgress?.progressCount ?? 0)));
+    tr.appendChild(DomHelpers.createCell(null, totalPagesInput));
     const actionsCell = DomHelpers.createElement("td");
     actionsCell.appendChild(actions);
     tr.appendChild(actionsCell);
     return tr;
   }
+  renderPagesCell(item, progress) {
+    const cell = DomHelpers.createElement("div", "leif-pages-cell");
+    const readed = progress?.pagesReaded ?? 0;
+    const total = item.totalPages;
+    const progressBar = DomHelpers.createProgressBar(readed, total);
+    cell.appendChild(progressBar);
+    if (progress?.completed) {
+      const badge = DomHelpers.createElement("span", "leif-pages-completed");
+      badge.textContent = "\u2713 Conclu\xEDdo";
+      cell.appendChild(badge);
+    }
+    return cell;
+  }
   renderDetailRow(item, data) {
     const tr = DomHelpers.createElement("tr");
-    tr.className = "corvo-detail-row";
+    tr.className = "leif-detail-row";
     const td = DomHelpers.createElement("td");
     td.colSpan = 6;
-    const content = DomHelpers.createElement("div", "corvo-detail-content");
+    const content = DomHelpers.createElement("div", "leif-detail-content");
     if (item.resourceReferences && item.resourceReferences.length > 0) {
-      const list = DomHelpers.createElement("div", "corvo-detail-list");
+      const list = DomHelpers.createElement("div", "leif-detail-list");
       item.resourceReferences.forEach((ref) => {
-        const row = DomHelpers.createElement("div", "corvo-detail-list-item");
+        const row = DomHelpers.createElement("div", "leif-detail-list-item");
         row.appendChild(
-          DomHelpers.createParagraph(`${ref.type}: ${ref.title}`)
+          DomHelpers.createParagraph(`${this.formatResourceType(ref.type)}: ${ref.title}`)
         );
         if (ref.url) {
           const link = DomHelpers.createElement("a");
@@ -2622,10 +3226,9 @@ var ItemsTab = class {
     }
     const titleInput = DomHelpers.createInput("text", "T\xEDtulo");
     const typeSelect = DomHelpers.createSelect([
-      ["pdf", "pdf"],
-      ["video", "video"],
-      ["link", "link"],
-      ["question-notebook", "question-notebook"]
+      ["pdf", "PDF"],
+      ["video", "V\xEDdeo"],
+      ["link", "Link"]
     ]);
     const urlInput = DomHelpers.createInput("url", "URL");
     const form = DomHelpers.createForm(async () => {
@@ -2646,7 +3249,7 @@ var ItemsTab = class {
         this.notifyError(error, "N\xE3o foi poss\xEDvel adicionar refer\xEAncia.");
       }
     });
-    form.className = "corvo-detail-form";
+    form.className = "leif-detail-form";
     form.append(
       DomHelpers.createLabel("T\xEDtulo", titleInput),
       DomHelpers.createLabel("Tipo", typeSelect),
@@ -2658,42 +3261,40 @@ var ItemsTab = class {
     tr.appendChild(td);
     return tr;
   }
-  renderCreateItemForm(subjectId) {
+  openCreateItemModal(subjectId) {
     const titleInput = DomHelpers.createInput("text", "T\xEDtulo do item");
     const weightInput = DomHelpers.createInput("number", "Peso", "1");
     const questionCountInput = DomHelpers.createInput("number", "Total de quest\xF5es", "0");
-    const form = DomHelpers.createInlineForm(
-      "Novo item",
-      async () => {
-        try {
-          await this.createStudyItemUseCase.execute({
-            id: `${subjectId}-item-${Date.now()}`,
-            subjectId,
-            title: titleInput.value,
-            weight: Number(weightInput.value),
-            questionCount: Number(questionCountInput.value)
-          });
-          titleInput.value = "";
-          weightInput.value = "1";
-          questionCountInput.value = "0";
-          this.isCreatingNew = false;
-          await this.onUpdate();
-        } catch (error) {
-          this.notifyError(error, "N\xE3o foi poss\xEDvel criar o item.");
-        }
-      },
-      () => {
-        this.isCreatingNew = false;
-        this.onUpdate();
+    const totalPagesInput = DomHelpers.createInput("number", "Total de p\xE1ginas (opcional)", "");
+    const form = DomHelpers.createForm(async () => {
+      try {
+        const rawPages = totalPagesInput.value.trim();
+        await this.createStudyItemUseCase.execute({
+          id: `${subjectId}-item-${Date.now()}`,
+          subjectId,
+          title: titleInput.value,
+          weight: Number(weightInput.value),
+          questionCount: Number(questionCountInput.value),
+          totalPages: rawPages === "" ? void 0 : Number(rawPages)
+        });
+        modal.close();
+        await this.onUpdate();
+      } catch (error) {
+        this.notifyError(error, "N\xE3o foi poss\xEDvel criar o item.");
       }
-    );
-    const innerForm = form.querySelector("form");
-    innerForm.append(
+    });
+    form.append(
       DomHelpers.createLabel("T\xEDtulo", titleInput),
       DomHelpers.createLabel("Peso", weightInput),
-      DomHelpers.createLabel("Quest\xF5es", questionCountInput)
+      DomHelpers.createLabel("Quest\xF5es", questionCountInput),
+      DomHelpers.createLabel("P\xE1ginas", totalPagesInput)
     );
-    return form;
+    const modal = DomHelpers.createModal({
+      title: "Novo item",
+      content: form,
+      onSubmit: () => form.requestSubmit()
+    });
+    modal.open();
   }
   renderSubjectPicker(data) {
     const subjects = data.subjects.filter((subject) => subject.contestId === data.activeContestId).sort((left, right) => left.order - right.order);
@@ -2705,7 +3306,7 @@ var ItemsTab = class {
       this.selectedSubjectId = select.value;
       await this.onUpdate();
     });
-    const wrapper = DomHelpers.createElement("div", "corvo-toolbar");
+    const wrapper = DomHelpers.createElement("div", "leif-toolbar");
     wrapper.appendChild(DomHelpers.createLabel("Mat\xE9ria", select));
     return wrapper;
   }
@@ -2713,6 +3314,11 @@ var ItemsTab = class {
     const subjects = data.subjects.filter((subject) => subject.contestId === data.activeContestId).sort((left, right) => left.order - right.order);
     if (subjects.length === 0) return null;
     return subjects.find((subject) => subject.id === this.selectedSubjectId) ?? subjects[0];
+  }
+  formatResourceType(type) {
+    if (type === "pdf") return "PDF";
+    if (type === "video") return "V\xEDdeo";
+    return "Link";
   }
   notifyError(error, fallbackMessage) {
     new import_obsidian5.Notice(error instanceof Error ? error.message : fallbackMessage);
@@ -2796,7 +3402,6 @@ var SessionsTab = class {
     this.dataStore = dataStore;
     this.onUpdate = onUpdate;
     this.editingSessionId = null;
-    this.isCreatingNew = false;
     this.registerStudySessionUseCase = new RegisterStudySessionUseCase(dataStore);
     this.deleteStudySessionUseCase = new DeleteStudySessionUseCase(dataStore);
     this.getActiveContestSummaryUseCase = new GetActiveContestSummaryUseCase(dataStore);
@@ -2806,14 +3411,11 @@ var SessionsTab = class {
     this.getActiveCycleSnapshotUseCase = new GetActiveCycleSnapshotUseCase(dataStore);
   }
   async render(container, data) {
-    const header = DomHelpers.createElement("div", "corvo-section-header");
+    const header = DomHelpers.createElement("div", "leif-section-header");
     header.appendChild(DomHelpers.createSectionTitle("Sess\xF5es"));
     header.appendChild(
       DomHelpers.createIconButton("add", "Nova sess\xE3o", {
-        onClick: async () => {
-          this.isCreatingNew = true;
-          await this.onUpdate();
-        }
+        onClick: () => this.openCreateSessionModal(data)
       })
     );
     container.appendChild(header);
@@ -2832,31 +3434,36 @@ var SessionsTab = class {
     }
     const snapshot = await this.getActiveCycleSnapshotUseCase.execute();
     const itemMap = new Map(data.studyItems.map((item) => [item.id, item.title]));
-    const cycleContext = DomHelpers.createElement("div", "corvo-cycle-context");
-    const nowLabel = DomHelpers.createElement("span", "corvo-cycle-context-label");
-    nowLabel.textContent = "Estudando agora: ";
-    const nowValue = DomHelpers.createElement("span", "corvo-cycle-context-value");
-    nowValue.textContent = snapshot.currentSubject?.name ?? "\u2014";
+    const recommendedSubject = snapshot.currentSubject ?? snapshot.nextSubject;
+    const afterRecommendedSubject = snapshot.currentSubject && snapshot.nextSubject?.id !== snapshot.currentSubject.id ? snapshot.nextSubject : null;
+    const recommendedItemId = snapshot.currentItemId ?? snapshot.nextItemId;
+    const cycleContext = DomHelpers.createElement("div", "leif-cycle-context");
+    const nowLabel = DomHelpers.createElement("span", "leif-cycle-context-label");
+    nowLabel.textContent = "Mat\xE9ria recomendada: ";
+    const nowValue = DomHelpers.createElement("span", "leif-cycle-context-value");
+    nowValue.textContent = recommendedSubject?.name ?? "\u2014";
     cycleContext.appendChild(nowLabel);
     cycleContext.appendChild(nowValue);
-    if (snapshot.currentItemId) {
-      const itemLabel = DomHelpers.createElement("span", "corvo-cycle-context-sublabel");
-      itemLabel.textContent = `Item: ${itemMap.get(snapshot.currentItemId) ?? snapshot.currentItemId}`;
+    if (recommendedItemId) {
+      const itemLabel = DomHelpers.createElement("span", "leif-cycle-context-sublabel");
+      itemLabel.textContent = `Item: ${itemMap.get(recommendedItemId) ?? recommendedItemId}`;
       cycleContext.appendChild(itemLabel);
     }
-    const nextInfo = DomHelpers.createElement("span", "corvo-cycle-context-next");
-    nextInfo.textContent = `Pr\xF3xima: ${snapshot.nextSubject?.name ?? "\u2014"}`;
-    cycleContext.appendChild(nextInfo);
+    if (afterRecommendedSubject) {
+      const nextInfo = DomHelpers.createElement("span", "leif-cycle-context-next");
+      nextInfo.textContent = `Depois: ${afterRecommendedSubject.name}`;
+      cycleContext.appendChild(nextInfo);
+    }
     container.appendChild(cycleContext);
-    const cycleAction = DomHelpers.createElement("div", "corvo-cycle-action");
+    const cycleAction = DomHelpers.createElement("div", "leif-cycle-action");
     cycleAction.appendChild(
       DomHelpers.createButton("Finalizar ciclo atual", {
-        className: "corvo-primary-button",
+        className: "leif-primary-button",
         icon: "refresh-cw",
         onClick: async () => {
           try {
             const result = await this.advanceCycleUseCase.execute();
-            new import_obsidian6.Notice(`Ciclo finalizado! Pr\xF3xima mat\xE9ria: ${result.nextSubject?.name ?? "\u2014"}`);
+            new import_obsidian6.Notice(`Ciclo finalizado! Mat\xE9ria recomendada: ${result.currentSubject?.name ?? "\u2014"}`);
             await this.onUpdate();
           } catch (error) {
             this.notifyError(error, "N\xE3o foi poss\xEDvel finalizar o ciclo.");
@@ -2866,9 +3473,6 @@ var SessionsTab = class {
     );
     container.appendChild(cycleAction);
     const subjects = data.subjects.filter((subject) => subject.contestId === activeContest.id);
-    if (this.isCreatingNew) {
-      container.appendChild(this.renderSessionForm(activeContest.id, subjects, data));
-    }
     const recentSessions = DomHelpers.createCard("Hist\xF3rico recente");
     const sessions = data.studySessions.filter((session) => session.contestId === activeContest.id).slice().reverse().slice(0, 10);
     if (sessions.length === 0) {
@@ -2880,6 +3484,7 @@ var SessionsTab = class {
         "Assunto",
         "Tipo",
         "Progresso",
+        "Acertos",
         "A\xE7\xF5es"
       ]);
       sessions.forEach((session) => {
@@ -2896,14 +3501,25 @@ var SessionsTab = class {
   }
   renderDisplayRow(session, data) {
     const tr = DomHelpers.createElement("tr");
+    tr.dataset.sessionId = session.id;
     const subjectName = data.subjects.find((subject) => subject.id === session.subjectId)?.name ?? "\u2014";
     const topicName = data.topics.find((topic) => topic.id === session.topicId)?.name ?? "\u2014";
     tr.appendChild(DomHelpers.createCell(new Date(session.studiedAt).toLocaleDateString("pt-BR")));
     tr.appendChild(DomHelpers.createCell(subjectName));
     tr.appendChild(DomHelpers.createCell(topicName));
     tr.appendChild(DomHelpers.createCell(this.formatSessionType(session.type)));
-    tr.appendChild(DomHelpers.createCell(String(session.pagesOrCount ?? 0)));
-    const actions = DomHelpers.createElement("div", "corvo-inline-actions corvo-inline-actions-compact");
+    tr.appendChild(
+      DomHelpers.createCell(
+        null,
+        this.renderSessionProgress(session, data)
+      )
+    );
+    tr.appendChild(
+      DomHelpers.createCell(
+        session.type === StudySessionType.QUESTIONS ? String(session.correctAnswers ?? 0) : "\u2014"
+      )
+    );
+    const actions = DomHelpers.createElement("div", "leif-inline-actions leif-inline-actions-compact");
     actions.appendChild(
       DomHelpers.createIconButton("edit", "Editar", {
         onClick: async () => {
@@ -2932,16 +3548,34 @@ var SessionsTab = class {
     tr.appendChild(actionsCell);
     return tr;
   }
+  renderSessionProgress(session, data) {
+    const container = DomHelpers.createElement("div", "leif-session-progress");
+    if (session.type === StudySessionType.PDF && session.studyItemId) {
+      const item = data.studyItems.find((i) => i.id === session.studyItemId);
+      const total = item?.totalPages;
+      const readed = session.pagesOrCount ?? 0;
+      if (total !== void 0 && total > 0) {
+        const progressBar = DomHelpers.createProgressBar(readed, total);
+        container.appendChild(progressBar);
+        return container;
+      }
+    }
+    container.textContent = String(session.pagesOrCount ?? 0);
+    return container;
+  }
   renderEditableRow(session, data) {
     const tr = DomHelpers.createElement("tr");
-    tr.className = "corvo-editing-row";
+    tr.className = "leif-editing-row";
+    tr.dataset.sessionId = session.id;
     const countInput = DomHelpers.createCompactInput("number", "Qtd", String(session.pagesOrCount ?? 0));
+    const correctInput = DomHelpers.createCompactInput("number", "Acertos", String(session.correctAnswers ?? 0));
     const saveButton = DomHelpers.createIconButton("save", "Salvar", {
       onClick: async () => {
         try {
           await this.updateStudySessionUseCase.execute({
             sessionId: session.id,
-            pagesOrCount: Number(countInput.value)
+            pagesOrCount: Number(countInput.value),
+            correctAnswers: session.type === StudySessionType.QUESTIONS ? Number(correctInput.value) : void 0
           });
           this.editingSessionId = null;
           await this.onUpdate();
@@ -2956,7 +3590,7 @@ var SessionsTab = class {
         await this.onUpdate();
       }
     });
-    const actions = DomHelpers.createElement("div", "corvo-inline-actions corvo-inline-actions-compact");
+    const actions = DomHelpers.createElement("div", "leif-inline-actions leif-inline-actions-compact");
     actions.appendChild(saveButton);
     actions.appendChild(cancelButton);
     const subjectName = data.subjects.find((subject) => subject.id === session.subjectId)?.name ?? "\u2014";
@@ -2966,29 +3600,44 @@ var SessionsTab = class {
     tr.appendChild(DomHelpers.createCell(topicName));
     tr.appendChild(DomHelpers.createCell(this.formatSessionType(session.type)));
     tr.appendChild(DomHelpers.createCell(null, countInput));
+    tr.appendChild(
+      DomHelpers.createCell(
+        session.type === StudySessionType.QUESTIONS ? null : "\u2014",
+        session.type === StudySessionType.QUESTIONS ? correctInput : void 0
+      )
+    );
     const actionsCell = DomHelpers.createElement("td");
     actionsCell.appendChild(actions);
     tr.appendChild(actionsCell);
     return tr;
   }
-  renderSessionForm(contestId, subjects, data) {
-    const card = DomHelpers.createElement("section", "corvo-card corvo-create-form");
-    card.appendChild(DomHelpers.createSectionSubtitle("Nova sess\xE3o", "add"));
+  openCreateSessionModal(data) {
+    const activeContest = data.contests.find((contest) => contest.id === data.activeContestId);
+    if (!activeContest) return;
+    const subjects = data.subjects.filter((subject) => subject.contestId === activeContest.id);
     const form = DomHelpers.createForm(async () => {
       try {
+        const sessionType = typeSelect.value;
+        const rawCount = Number(countInput.value);
+        const rawCorrect = Number(correctInput.value);
+        if (sessionType === StudySessionType.QUESTIONS && (!rawCount || rawCount <= 0)) {
+          throw new ValidationError("Informe a quantidade de quest\xF5es (maior que zero).");
+        }
+        const pagesOrCount = sessionType === StudySessionType.QUESTIONS ? rawCount : rawCount || void 0;
+        const correctAnswers = sessionType === StudySessionType.QUESTIONS ? Math.min(rawCorrect, rawCount) : void 0;
         await this.registerStudySessionUseCase.execute({
           id: `session-${Date.now()}`,
-          contestId,
+          contestId: activeContest.id,
           subjectId: subjectSelect.value,
           studyItemId: itemSelect.value || void 0,
           topicId: topicSelect.value || void 0,
-          type: typeSelect.value,
+          type: sessionType,
           studiedAt: dateInput.value,
-          pagesOrCount: Number(countInput.value),
-          correctAnswers: typeSelect.value === "questions" ? Number(correctInput.value) : void 0,
+          pagesOrCount,
+          correctAnswers,
           completed: true
         });
-        this.isCreatingNew = false;
+        modal.close();
         await this.onUpdate();
       } catch (error) {
         this.notifyError(error, "N\xE3o foi poss\xEDvel registrar a sess\xE3o.");
@@ -2998,9 +3647,9 @@ var SessionsTab = class {
       subjects.map((subject) => [subject.id, subject.name])
     );
     const typeSelect = DomHelpers.createSelect([
-      ["pdf", "pdf"],
-      ["video", "video"],
-      ["questions", "questions"]
+      ["pdf", "PDF"],
+      ["video", "V\xEDdeo"],
+      ["questions", "Quest\xF5es"]
     ]);
     const getItemOptions = () => [
       ["", "Sem item"],
@@ -3018,18 +3667,32 @@ var SessionsTab = class {
     const dateInput = DomHelpers.createInput("date", "Data");
     dateInput.value = this.getDefaultDateValue();
     const syncDependentSelects = () => {
+      const previousItem = itemSelect.value;
+      const previousTopic = topicSelect.value;
       DomHelpers.replaceSelectOptions(itemSelect, getItemOptions());
       DomHelpers.replaceSelectOptions(topicSelect, getTopicOptions());
+      const itemStillValid = Array.from(itemSelect.options).some(
+        (option) => option.value === previousItem
+      );
+      const topicStillValid = Array.from(topicSelect.options).some(
+        (option) => option.value === previousTopic
+      );
+      if (!itemStillValid) {
+        itemSelect.value = "";
+      }
+      if (!topicStillValid) {
+        topicSelect.value = "";
+      }
     };
     const syncQuestionField = () => {
-      const isQuestionSession = typeSelect.value === "questions";
+      const isQuestionSession = typeSelect.value === StudySessionType.QUESTIONS;
       correctLabel.style.display = isQuestionSession ? "" : "none";
     };
     subjectSelect.addEventListener("change", syncDependentSelects);
     typeSelect.addEventListener("change", syncQuestionField);
     syncDependentSelects();
     syncQuestionField();
-    const formGrid = DomHelpers.createElement("div", "corvo-form-grid");
+    const formGrid = DomHelpers.createElement("div", "leif-form-grid");
     formGrid.append(
       DomHelpers.createLabel("Mat\xE9ria", subjectSelect),
       DomHelpers.createLabel("Tipo", typeSelect),
@@ -3039,27 +3702,17 @@ var SessionsTab = class {
       correctLabel,
       DomHelpers.createLabel("Data", dateInput)
     );
-    form.append(
-      formGrid,
-      DomHelpers.createButton("Cancelar", {
-        type: "button",
-        className: "corvo-button",
-        onClick: () => {
-          this.isCreatingNew = false;
-          this.onUpdate();
-        }
-      }),
-      DomHelpers.createButton("Registrar sess\xE3o", {
-        type: "submit",
-        className: "corvo-primary-button"
-      })
-    );
-    card.appendChild(form);
-    return card;
+    form.appendChild(formGrid);
+    const modal = DomHelpers.createModal({
+      title: "Nova sess\xE3o",
+      content: form,
+      onSubmit: () => form.requestSubmit()
+    });
+    modal.open();
   }
   formatSessionType(type) {
-    if (type === "questions") return "Quest\xF5es";
-    if (type === "video") return "V\xEDdeo";
+    if (type === StudySessionType.QUESTIONS) return "Quest\xF5es";
+    if (type === StudySessionType.VIDEO) return "V\xEDdeo";
     return "PDF";
   }
   getDefaultDateValue() {
@@ -3076,24 +3729,6 @@ var SessionsTab = class {
 // src/ui/view/components/TopicsTab.ts
 var import_obsidian7 = require("obsidian");
 
-// src/application/use-cases/AddTopicResourceReferenceUseCase.ts
-var AddTopicResourceReferenceUseCase = class {
-  constructor(dataStore) {
-    this.dataStore = dataStore;
-    this.topicRepository = new EntityRepository(dataStore, "topics");
-  }
-  async execute(input) {
-    const validation = new AddTopicResourceReferenceValidator().validate(input);
-    if (!validation.valid) {
-      throw new ValidationError(validation.errors.join(", "));
-    }
-    return await this.topicRepository.update(input.topicId, (topic) => ({
-      ...topic,
-      resourceReferences: [...topic.resourceReferences, input.resourceReference]
-    }));
-  }
-};
-
 // src/application/use-cases/DeleteTopicUseCase.ts
 var DeleteTopicUseCase = class {
   constructor(dataStore) {
@@ -3104,24 +3739,6 @@ var DeleteTopicUseCase = class {
     const topic = await this.topicRepository.findById(input.topicId);
     await this.topicRepository.delete(input.topicId);
     return topic;
-  }
-};
-
-// src/application/use-cases/LinkQuestionNotebookUseCase.ts
-var LinkQuestionNotebookUseCase = class {
-  constructor(dataStore) {
-    this.dataStore = dataStore;
-    this.topicRepository = new EntityRepository(dataStore, "topics");
-  }
-  async execute(input) {
-    const validation = new LinkQuestionNotebookValidator().validate(input);
-    if (!validation.valid) {
-      throw new ValidationError(validation.errors.join(", "));
-    }
-    return await this.topicRepository.update(input.topicId, (topic) => ({
-      ...topic,
-      questionNotebook: input.questionNotebook
-    }));
   }
 };
 
@@ -3172,22 +3789,17 @@ var TopicsTab = class {
     this.selectedSubjectId = null;
     this.editingTopicId = null;
     this.expandedTopicId = null;
-    this.isCreatingNew = false;
     this.createTopicUseCase = new CreateTopicUseCase(dataStore);
-    this.addTopicResourceReferenceUseCase = new AddTopicResourceReferenceUseCase(dataStore);
-    this.linkQuestionNotebookUseCase = new LinkQuestionNotebookUseCase(dataStore);
     this.deleteTopicUseCase = new DeleteTopicUseCase(dataStore);
+    this.linkQuestionNotebookUseCase = new LinkQuestionNotebookUseCase(dataStore);
     this.updateTopicUseCase = new UpdateTopicUseCase(dataStore);
   }
   async render(container, data) {
-    const header = DomHelpers.createElement("div", "corvo-section-header");
+    const header = DomHelpers.createElement("div", "leif-section-header");
     header.appendChild(DomHelpers.createSectionTitle("Assuntos e Quest\xF5es"));
     header.appendChild(
       DomHelpers.createIconButton("add", "Novo assunto", {
-        onClick: async () => {
-          this.isCreatingNew = true;
-          await this.onUpdate();
-        }
+        onClick: () => this.openCreateTopicModal(this.getSelectedSubject(data)?.id ?? "")
       })
     );
     container.appendChild(header);
@@ -3202,9 +3814,6 @@ var TopicsTab = class {
       return;
     }
     container.appendChild(this.renderSubjectPicker(data));
-    if (this.isCreatingNew) {
-      container.appendChild(this.renderCreateTopicForm(subject.id));
-    }
     const topics = data.topics.filter((topic) => topic.subjectId === subject.id).sort((left, right) => left.order - right.order);
     const card = DomHelpers.createCard(`Assuntos de ${subject.name}`);
     if (topics.length === 0) {
@@ -3237,19 +3846,20 @@ var TopicsTab = class {
   }
   renderDisplayRow(topic, data) {
     const tr = DomHelpers.createElement("tr");
-    const hasDetails = topic.resourceReferences.length > 0 || topic.questionNotebook;
+    tr.dataset.topicId = topic.id;
+    const hasDetails = Boolean(topic.questionNotebook);
     tr.appendChild(DomHelpers.createCell(String(topic.order)));
     tr.appendChild(DomHelpers.createCell(topic.name));
-    tr.appendChild(DomHelpers.createCell(topic.questionNotebook?.name ?? "\u2014"));
+    tr.appendChild(DomHelpers.createCell(null, this.renderNotebookCell(topic)));
     tr.appendChild(DomHelpers.createCell(String(topic.questionNotebook?.solvedQuestions ?? 0)));
     tr.appendChild(DomHelpers.createCell(String(topic.questionNotebook?.correctAnswers ?? 0)));
-    const actions = DomHelpers.createElement("div", "corvo-inline-actions corvo-inline-actions-compact");
+    const actions = DomHelpers.createElement("div", "leif-inline-actions leif-inline-actions-compact");
     actions.appendChild(
       DomHelpers.createIconButton(
         this.expandedTopicId === topic.id ? "collapse" : "expand",
         this.expandedTopicId === topic.id ? "Recolher" : "Expandir",
         {
-          className: `corvo-icon-button ${hasDetails ? "" : "corvo-expand-button"}`,
+          className: `leif-icon-button ${hasDetails ? "" : "leif-expand-button"}`,
           onClick: async () => {
             this.expandedTopicId = this.expandedTopicId === topic.id ? null : topic.id;
             await this.onUpdate();
@@ -3284,9 +3894,30 @@ var TopicsTab = class {
     tr.appendChild(actionsCell);
     return tr;
   }
+  renderNotebookCell(topic) {
+    const notebook = topic.questionNotebook;
+    if (!notebook) {
+      return DomHelpers.createParagraph("\u2014");
+    }
+    if (!notebook.url) {
+      return DomHelpers.createParagraph(notebook.name);
+    }
+    const link = DomHelpers.createElement("a");
+    link.href = notebook.url;
+    link.textContent = notebook.name;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.dataset.topicNotebookUrl = topic.id;
+    link.addEventListener("click", (event) => {
+      event.preventDefault();
+      window.open(notebook.url, "_blank", "noopener");
+    });
+    return link;
+  }
   renderEditableRow(topic, data) {
     const tr = DomHelpers.createElement("tr");
-    tr.className = "corvo-editing-row";
+    tr.className = "leif-editing-row";
+    tr.dataset.topicId = topic.id;
     const nameInput = DomHelpers.createCompactInput("text", "Nome", topic.name);
     const solvedInput = DomHelpers.createCompactInput(
       "number",
@@ -3325,7 +3956,7 @@ var TopicsTab = class {
         await this.onUpdate();
       }
     });
-    const actions = DomHelpers.createElement("div", "corvo-inline-actions corvo-inline-actions-compact");
+    const actions = DomHelpers.createElement("div", "leif-inline-actions leif-inline-actions-compact");
     actions.appendChild(saveButton);
     actions.appendChild(cancelButton);
     tr.appendChild(DomHelpers.createCell(String(topic.order)));
@@ -3340,126 +3971,80 @@ var TopicsTab = class {
   }
   renderDetailRow(topic, data) {
     const tr = DomHelpers.createElement("tr");
-    tr.className = "corvo-detail-row";
+    tr.className = "leif-detail-row";
     const td = DomHelpers.createElement("td");
     td.colSpan = 6;
-    const content = DomHelpers.createElement("div", "corvo-detail-content");
-    if (topic.resourceReferences.length > 0) {
-      const list = DomHelpers.createElement("div", "corvo-detail-list");
-      topic.resourceReferences.forEach((ref) => {
-        const row = DomHelpers.createElement("div", "corvo-detail-list-item");
-        row.appendChild(DomHelpers.createParagraph(`${ref.type}: ${ref.title}`));
-        if (ref.url) {
-          const link = DomHelpers.createElement("a");
-          link.href = ref.url;
-          link.textContent = "\u{1F517}";
-          link.target = "_blank";
-          row.appendChild(link);
-        }
-        list.appendChild(row);
-      });
-      content.appendChild(list);
-    }
-    const titleInput = DomHelpers.createInput("text", "T\xEDtulo");
-    const typeSelect = DomHelpers.createSelect([
-      ["pdf", "pdf"],
-      ["video", "video"],
-      ["link", "link"],
-      ["question-notebook", "question-notebook"]
-    ]);
-    const urlInput = DomHelpers.createInput("url", "URL");
-    const resourceForm = DomHelpers.createForm(async () => {
+    const content = DomHelpers.createElement("div", "leif-detail-content");
+    const notebookName = DomHelpers.createInput("text", "Caderno", topic.questionNotebook?.name ?? "");
+    const notebookUrl = DomHelpers.createInput("url", "URL", topic.questionNotebook?.url ?? "");
+    const notebookSolved = DomHelpers.createInput(
+      "number",
+      "Resolv.",
+      String(topic.questionNotebook?.solvedQuestions ?? 0)
+    );
+    const notebookCorrect = DomHelpers.createInput(
+      "number",
+      "Acert.",
+      String(topic.questionNotebook?.correctAnswers ?? 0)
+    );
+    const notebookForm = DomHelpers.createForm(async () => {
       try {
-        await this.addTopicResourceReferenceUseCase.execute({
+        await this.linkQuestionNotebookUseCase.execute({
           topicId: topic.id,
-          resourceReference: {
-            id: `${topic.id}-resource-${Date.now()}`,
-            title: titleInput.value,
-            type: typeSelect.value,
-            url: urlInput.value
+          questionNotebook: {
+            id: topic.questionNotebook?.id ?? `${topic.id}-notebook`,
+            name: notebookName.value,
+            url: notebookUrl.value,
+            solvedQuestions: Number(notebookSolved.value),
+            correctAnswers: Number(notebookCorrect.value)
           }
         });
-        titleInput.value = "";
-        urlInput.value = "";
         await this.onUpdate();
       } catch (error) {
-        this.notifyError(error, "N\xE3o foi poss\xEDvel adicionar refer\xEAncia.");
+        this.notifyError(error, "N\xE3o foi poss\xEDvel vincular caderno.");
       }
     });
-    resourceForm.className = "corvo-detail-form";
-    resourceForm.append(
-      DomHelpers.createLabel("T\xEDtulo", titleInput),
-      DomHelpers.createLabel("Tipo", typeSelect),
-      DomHelpers.createLabel("URL", urlInput),
-      DomHelpers.createIconButton("add", "Adicionar", { onClick: () => resourceForm.requestSubmit() })
+    notebookForm.className = "leif-detail-form";
+    notebookForm.dataset.topicNotebookForm = topic.id;
+    notebookForm.append(
+      DomHelpers.createLabel("Caderno", notebookName),
+      DomHelpers.createLabel("URL", notebookUrl),
+      DomHelpers.createLabel("Resolv.", notebookSolved),
+      DomHelpers.createLabel("Acert.", notebookCorrect),
+      DomHelpers.createIconButton("save", "Salvar", { onClick: () => notebookForm.requestSubmit() })
     );
-    content.appendChild(resourceForm);
-    if (topic.questionNotebook) {
-      const notebookName = DomHelpers.createInput("text", "Nome", topic.questionNotebook.name);
-      const notebookSolved = DomHelpers.createInput("number", "Resolv.", String(topic.questionNotebook.solvedQuestions));
-      const notebookCorrect = DomHelpers.createInput("number", "Acert.", String(topic.questionNotebook.correctAnswers));
-      const notebookForm = DomHelpers.createForm(async () => {
-        try {
-          await this.linkQuestionNotebookUseCase.execute({
-            topicId: topic.id,
-            questionNotebook: {
-              id: topic.questionNotebook?.id ?? `${topic.id}-notebook`,
-              name: notebookName.value,
-              url: topic.questionNotebook?.url ?? "",
-              solvedQuestions: Number(notebookSolved.value),
-              correctAnswers: Number(notebookCorrect.value)
-            }
-          });
-          await this.onUpdate();
-        } catch (error) {
-          this.notifyError(error, "N\xE3o foi poss\xEDvel vincular caderno.");
-        }
-      });
-      notebookForm.className = "corvo-detail-form";
-      notebookForm.append(
-        DomHelpers.createLabel("Caderno", notebookName),
-        DomHelpers.createLabel("Resolv.", notebookSolved),
-        DomHelpers.createLabel("Acert.", notebookCorrect),
-        DomHelpers.createIconButton("save", "Salvar", { onClick: () => notebookForm.requestSubmit() })
-      );
-      content.appendChild(notebookForm);
-    }
+    content.appendChild(notebookForm);
     td.appendChild(content);
     tr.appendChild(td);
     return tr;
   }
-  renderCreateTopicForm(subjectId) {
+  openCreateTopicModal(subjectId) {
     const nameInput = DomHelpers.createInput("text", "Nome do assunto");
     const orderInput = DomHelpers.createInput("number", "Ordem", "1");
-    const form = DomHelpers.createInlineForm(
-      "Novo assunto",
-      async () => {
-        try {
-          await this.createTopicUseCase.execute({
-            id: `${subjectId}-topic-${Date.now()}`,
-            subjectId,
-            name: nameInput.value,
-            order: Number(orderInput.value)
-          });
-          nameInput.value = "";
-          orderInput.value = "1";
-          this.isCreatingNew = false;
-          await this.onUpdate();
-        } catch (error) {
-          this.notifyError(error, "N\xE3o foi poss\xEDvel criar o assunto.");
-        }
-      },
-      () => {
-        this.isCreatingNew = false;
-        this.onUpdate();
+    const form = DomHelpers.createForm(async () => {
+      try {
+        await this.createTopicUseCase.execute({
+          id: `${subjectId}-topic-${Date.now()}`,
+          subjectId,
+          name: nameInput.value,
+          order: Number(orderInput.value)
+        });
+        modal.close();
+        await this.onUpdate();
+      } catch (error) {
+        this.notifyError(error, "N\xE3o foi poss\xEDvel criar o assunto.");
       }
-    );
-    const innerForm = form.querySelector("form");
-    innerForm.append(
+    });
+    form.append(
       DomHelpers.createLabel("Nome", nameInput),
       DomHelpers.createLabel("Ordem", orderInput)
     );
-    return form;
+    const modal = DomHelpers.createModal({
+      title: "Novo assunto",
+      content: form,
+      onSubmit: () => form.requestSubmit()
+    });
+    modal.open();
   }
   renderSubjectPicker(data) {
     const subjects = data.subjects.filter((subject) => subject.contestId === data.activeContestId).sort((left, right) => left.order - right.order);
@@ -3471,7 +4056,7 @@ var TopicsTab = class {
       this.selectedSubjectId = select.value;
       await this.onUpdate();
     });
-    const wrapper = DomHelpers.createElement("div", "corvo-toolbar");
+    const wrapper = DomHelpers.createElement("div", "leif-toolbar");
     wrapper.appendChild(DomHelpers.createLabel("Mat\xE9ria", select));
     return wrapper;
   }
@@ -3566,7 +4151,7 @@ var WallTab = class {
         this.notifyError(error, "N\xE3o foi poss\xEDvel salvar o mural.");
       }
     });
-    form.classList.add("corvo-card");
+    form.classList.add("leif-card");
     form.append(
       DomHelpers.createLabel("Edital", noticeLabel),
       DomHelpers.createLabel("Link do edital", noticeUrl),
@@ -3575,7 +4160,7 @@ var WallTab = class {
       DomHelpers.createLabel("Notas", notes),
       DomHelpers.createButton("Salvar mural", {
         type: "submit",
-        className: "corvo-primary-button"
+        className: "leif-primary-button"
       })
     );
     return form;
@@ -3612,7 +4197,7 @@ var WallTab = class {
   }
 };
 
-// src/ui/view/CorvoView.ts
+// src/ui/view/LeifView.ts
 var TABS2 = [
   { id: "dashboard", label: "Dashboard" },
   { id: "contests", label: "Concursos" },
@@ -3622,7 +4207,7 @@ var TABS2 = [
   { id: "sessions", label: "Sess\xF5es" },
   { id: "wall", label: "Mural" }
 ];
-var CorvoView = class extends import_obsidian9.ItemView {
+var LeifView = class extends import_obsidian9.ItemView {
   constructor(leaf, dataStore) {
     super(leaf);
     this.dataStore = dataStore;
@@ -3638,13 +4223,13 @@ var CorvoView = class extends import_obsidian9.ItemView {
     this.wallTab = new WallTab(dataStore, () => this.refresh());
   }
   getViewType() {
-    return CORVO_VIEW_TYPE;
+    return LEIF_VIEW_TYPE;
   }
   getDisplayText() {
-    return "Corvo";
+    return "Leif";
   }
   getIcon() {
-    return CORVO_ICON;
+    return LEIF_ICON;
   }
   async onOpen() {
     await this.render();
@@ -3675,21 +4260,21 @@ var CorvoView = class extends import_obsidian9.ItemView {
    */
   buildShell() {
     this.contentEl.innerHTML = "";
-    this.contentEl.className = "corvo-view";
-    this.shell = DomHelpers.createElement("div", "corvo-shell");
-    const header = DomHelpers.createElement("header", "corvo-header");
-    const titleGroup = DomHelpers.createElement("div", "corvo-title-group");
+    this.contentEl.className = "leif-view";
+    this.shell = DomHelpers.createElement("div", "leif-shell");
+    const header = DomHelpers.createElement("header", "leif-header");
+    const titleGroup = DomHelpers.createElement("div", "leif-title-group");
     titleGroup.append(
-      DomHelpers.createHeading("Corvo"),
+      DomHelpers.createHeading("Leif"),
       DomHelpers.createParagraph("Planejamento e acompanhamento dos estudos.")
     );
-    this.headerActions = DomHelpers.createElement("div", "corvo-header-actions");
+    this.headerActions = DomHelpers.createElement("div", "leif-header-actions");
     header.append(titleGroup, this.headerActions);
-    this.tabBar = DomHelpers.createElement("nav", "corvo-tab-bar");
+    this.tabBar = DomHelpers.createElement("nav", "leif-tab-bar");
     TABS2.forEach((tab) => {
       const button = DomHelpers.createButton(tab.label, {
         dataset: { tab: tab.id },
-        className: "corvo-tab-button",
+        className: "leif-tab-button",
         onClick: async () => {
           this.activeTab = tab.id;
           this.updateTabButtonStyles();
@@ -3699,7 +4284,7 @@ var CorvoView = class extends import_obsidian9.ItemView {
       this.tabButtons.set(tab.id, button);
       this.tabBar.appendChild(button);
     });
-    this.activeTabContainer = DomHelpers.createElement("section", "corvo-body");
+    this.activeTabContainer = DomHelpers.createElement("section", "leif-body");
     this.shell.append(header, this.tabBar, this.activeTabContainer);
     this.contentEl.appendChild(this.shell);
   }
@@ -3728,7 +4313,7 @@ var CorvoView = class extends import_obsidian9.ItemView {
    */
   updateTabButtonStyles() {
     this.tabButtons.forEach((button, tabId) => {
-      button.className = this.activeTab === tabId ? "corvo-tab-button is-active" : "corvo-tab-button";
+      button.className = this.activeTab === tabId ? "leif-tab-button is-active" : "leif-tab-button";
     });
   }
   async renderActiveTab(container, data) {
@@ -3769,65 +4354,36 @@ var CorvoView = class extends import_obsidian9.ItemView {
   }
 };
 
-// src/ui/view/registerCorvoView.ts
-var CORVO_VIEW_TYPE = "corvo-main-view";
-var CORVO_ICON = "feather";
-function registerCorvoView(plugin, dataStore) {
-  plugin.registerView(CORVO_VIEW_TYPE, (leaf) => new CorvoView(leaf, dataStore));
-  plugin.addRibbonIcon(CORVO_ICON, "Abrir Corvo", () => openCorvoView(plugin));
+// src/ui/view/registerLeifView.ts
+var LEIF_VIEW_TYPE = "leif-main-view";
+var LEIF_ICON = "feather";
+function registerLeifView(plugin, dataStore) {
+  plugin.registerView(LEIF_VIEW_TYPE, (leaf) => new LeifView(leaf, dataStore));
+  plugin.addRibbonIcon(LEIF_ICON, "Abrir Leif", () => openLeifView(plugin));
   plugin.addCommand({
-    id: "corvo-open-view",
-    name: "Abrir painel do Corvo",
+    id: "leif-open-view",
+    name: "Abrir painel do Leif",
     callback: async () => {
-      await openCorvoView(plugin);
+      await openLeifView(plugin);
     }
   });
 }
-async function openCorvoView(plugin) {
-  const existingLeaf = plugin.app.workspace.getLeavesOfType(CORVO_VIEW_TYPE)[0];
+async function openLeifView(plugin) {
+  const existingLeaf = plugin.app.workspace.getLeavesOfType(LEIF_VIEW_TYPE)[0];
   const leaf = existingLeaf ?? plugin.app.workspace.getLeaf();
   await leaf.setViewState({
-    type: CORVO_VIEW_TYPE,
+    type: LEIF_VIEW_TYPE,
     active: true
   });
   await plugin.app.workspace.revealLeaf(leaf);
 }
 
-// src/ui/settings/CorvoSettingTab.ts
-var CorvoSettingTab = class extends import_obsidian10.PluginSettingTab {
-  constructor(app, corvoPlugin) {
-    super(app, corvoPlugin);
-    this.corvoPlugin = corvoPlugin;
-  }
-  display() {
-    this.containerEl.innerHTML = "";
-    const wrapper = document.createElement("div");
-    wrapper.className = "corvo-settings";
-    const title = document.createElement("h2");
-    title.textContent = "Corvo";
-    const description = document.createElement("p");
-    description.textContent = "O Corvo \xE9 aberto em uma visualiza\xE7\xE3o pr\xF3pria dentro do Obsidian. Use o bot\xE3o abaixo para acessar o painel principal.";
-    const openButton = document.createElement("button");
-    openButton.type = "button";
-    openButton.className = "mod-cta";
-    openButton.textContent = "Abrir painel do Corvo";
-    openButton.addEventListener("click", async () => {
-      await openCorvoView(this.corvoPlugin);
-    });
-    const help = document.createElement("p");
-    help.textContent = "Voc\xEA tamb\xE9m pode abrir o plugin pela faixa lateral esquerda ou pela paleta de comandos, usando o comando \u201CCorvo: Abrir painel do Corvo\u201D.";
-    wrapper.append(title, description, openButton, help);
-    this.containerEl.appendChild(wrapper);
-  }
-};
-
 // src/main.ts
-var CorvoPlugin = class extends import_obsidian11.Plugin {
+var LeifPlugin = class extends import_obsidian10.Plugin {
   async onload() {
     this.dataStore = new PluginDataStore(new ObsidianStorageAdapter(this));
     await this.dataStore.load();
-    registerCorvoView(this, this.dataStore);
+    registerLeifView(this, this.dataStore);
     registerCommands(this, this.dataStore);
-    this.addSettingTab(new CorvoSettingTab(this.app, this));
   }
 };

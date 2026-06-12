@@ -4,7 +4,7 @@ import { DeleteContestUseCase } from "@/application/use-cases/DeleteContestUseCa
 import { SetActiveContestUseCase } from "@/application/use-cases/SetActiveContestUseCase";
 import { UpdateContestUseCase } from "@/application/use-cases/UpdateContestUseCase";
 import type { Contest } from "@/domain/entities/Contest";
-import type { CorvoPluginData } from "@/domain/types/CorvoPluginData";
+import type { LeifPluginData } from "@/domain/types/LeifPluginData";
 import { DomHelpers } from "@/ui/view/shared/DomHelpers";
 import { Notice } from "obsidian";
 
@@ -18,7 +18,6 @@ export class ContestsTab {
   private readonly deleteContestUseCase: DeleteContestUseCase;
 
   private editingContestId: string | null = null;
-  private isCreatingNew = false;
 
   constructor(
     private readonly dataStore: PluginDataStore,
@@ -30,25 +29,18 @@ export class ContestsTab {
     this.deleteContestUseCase = new DeleteContestUseCase(dataStore);
   }
 
-  async render(container: HTMLElement, data: CorvoPluginData): Promise<void> {
-    const header = DomHelpers.createElement("div", "corvo-section-header");
+  async render(container: HTMLElement, data: LeifPluginData): Promise<void> {
+    const header = DomHelpers.createElement("div", "leif-section-header");
     header.appendChild(DomHelpers.createSectionTitle("Concursos"));
     header.appendChild(
       DomHelpers.createIconButton("add", "Novo concurso", {
-        onClick: async () => {
-          this.isCreatingNew = true;
-          await this.onUpdate();
-        }
+        onClick: () => this.openCreateContestModal()
       })
     );
     container.appendChild(header);
     container.appendChild(
       DomHelpers.createParagraph("Cadastre concursos e defina qual deles está ativo.")
     );
-
-    if (this.isCreatingNew) {
-      container.appendChild(this.renderCreateContestForm());
-    }
 
     const contestsCard = DomHelpers.createCard("Lista de concursos");
     if (data.contests.length === 0) {
@@ -76,7 +68,7 @@ export class ContestsTab {
     container.appendChild(contestsCard);
   }
 
-  private renderDisplayRow(contest: Contest, data: CorvoPluginData): HTMLElement {
+  private renderDisplayRow(contest: Contest, data: LeifPluginData): HTMLElement {
     const tr = DomHelpers.createElement("tr");
     const isActive = data.activeContestId === contest.id;
 
@@ -85,7 +77,7 @@ export class ContestsTab {
     tr.appendChild(DomHelpers.createCell(contest.wall.notes ?? "—"));
     tr.appendChild(DomHelpers.createCell(isActive ? "Ativo" : "Inativo"));
 
-    const actions = DomHelpers.createElement("div", "corvo-inline-actions corvo-inline-actions-compact");
+    const actions = DomHelpers.createElement("div", "leif-inline-actions leif-inline-actions-compact");
 
     if (!isActive) {
       actions.appendChild(
@@ -134,12 +126,16 @@ export class ContestsTab {
     return tr;
   }
 
-  private renderEditableRow(contest: Contest, data: CorvoPluginData): HTMLElement {
+  private renderEditableRow(contest: Contest, data: LeifPluginData): HTMLElement {
     const tr = DomHelpers.createElement("tr");
-    tr.className = "corvo-editing-row";
+    tr.className = "leif-editing-row";
 
-    const nameInput = DomHelpers.createCompactInput("text", "Nome", contest.name);
-    const notesInput = DomHelpers.createCompactInput("text", "Notas", contest.wall.notes ?? "");
+    const nameInput = DomHelpers.createTextarea("Nome", contest.name);
+    nameInput.rows = 1;
+    nameInput.className = "leif-textarea leif-textarea-inline";
+    const notesInput = DomHelpers.createTextarea("Notas", contest.wall.notes ?? "");
+    notesInput.rows = 2;
+    notesInput.className = "leif-textarea leif-textarea-inline leif-textarea-notes";
 
     const saveButton = DomHelpers.createIconButton("save", "Salvar", {
       onClick: async () => {
@@ -164,7 +160,7 @@ export class ContestsTab {
       }
     });
 
-    const actions = DomHelpers.createElement("div", "corvo-inline-actions corvo-inline-actions-compact");
+    const actions = DomHelpers.createElement("div", "leif-inline-actions leif-inline-actions-compact");
     actions.appendChild(saveButton);
     actions.appendChild(cancelButton);
 
@@ -180,39 +176,35 @@ export class ContestsTab {
     return tr;
   }
 
-  private renderCreateContestForm(): HTMLElement {
+  private openCreateContestModal(): void {
     const idInput = DomHelpers.createInput("text", "ID do concurso");
     const nameInput = DomHelpers.createInput("text", "Nome do concurso");
 
-    const form = DomHelpers.createInlineForm(
-      "Novo concurso",
-      async () => {
-        try {
-          await this.createContestUseCase.execute({
-            id: idInput.value.trim(),
-            name: nameInput.value.trim()
-          });
-          idInput.value = "";
-          nameInput.value = "";
-          this.isCreatingNew = false;
-          await this.onUpdate();
-        } catch (error) {
-          this.notifyError(error, "Não foi possível criar o concurso.");
-        }
-      },
-      () => {
-        this.isCreatingNew = false;
-        this.onUpdate();
+    const form = DomHelpers.createForm(async () => {
+      try {
+        await this.createContestUseCase.execute({
+          id: idInput.value.trim(),
+          name: nameInput.value.trim()
+        });
+        modal.close();
+        await this.onUpdate();
+      } catch (error) {
+        this.notifyError(error, "Não foi possível criar o concurso.");
       }
-    );
+    });
 
-    const innerForm = form.querySelector("form")!;
-    innerForm.append(
+    form.append(
       DomHelpers.createLabel("ID", idInput),
       DomHelpers.createLabel("Nome", nameInput)
     );
 
-    return form;
+    const modal = DomHelpers.createModal({
+      title: "Novo concurso",
+      content: form,
+      onSubmit: () => form.requestSubmit()
+    });
+
+    modal.open();
   }
 
   private notifyError(error: unknown, fallbackMessage: string): void {

@@ -57,27 +57,65 @@ export class CycleService {
 
   /**
    * Gets the next study item ID for a subject.
-   * 
+   *
    * @param subject - The subject containing items
    * @param currentItemId - ID of the current item (optional)
-   * @returns The next item ID, or null if no items exist
+   * @param isCompleted - Optional predicate that returns true when an item is
+   *   considered completed. When provided, the method skips completed items
+   *   and returns null if every item is completed.
+   * @returns The next item ID, or null if no items exist or all are completed
    */
-  getNextItemId(subject: Subject, currentItemId?: string): string | null {
+  getNextItemId(
+    subject: Subject,
+    currentItemId?: string,
+    isCompleted?: (itemId: string) => boolean
+  ): string | null {
     if (subject.itemIds.length === 0) {
       return null;
     }
 
+    if (!isCompleted) {
+      if (!currentItemId) {
+        return subject.itemIds[0];
+      }
+
+      const currentIndex = subject.itemIds.findIndex((itemId) => itemId === currentItemId);
+
+      if (currentIndex === -1) {
+        return subject.itemIds[0];
+      }
+
+      return subject.itemIds[(currentIndex + 1) % subject.itemIds.length];
+    }
+
+    const findNext = (): string | null => {
+      for (const candidate of subject.itemIds) {
+        if (!isCompleted(candidate)) {
+          return candidate;
+        }
+      }
+      return null;
+    };
+
     if (!currentItemId) {
-      return subject.itemIds[0];
+      return findNext();
     }
 
     const currentIndex = subject.itemIds.findIndex((itemId) => itemId === currentItemId);
 
     if (currentIndex === -1) {
-      return subject.itemIds[0];
+      return findNext();
     }
 
-    return subject.itemIds[(currentIndex + 1) % subject.itemIds.length];
+    const total = subject.itemIds.length;
+    for (let offset = 1; offset <= total; offset += 1) {
+      const nextId = subject.itemIds[(currentIndex + offset) % total];
+      if (!isCompleted(nextId)) {
+        return nextId;
+      }
+    }
+
+    return null;
   }
 }
 

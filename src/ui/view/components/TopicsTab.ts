@@ -1,21 +1,19 @@
 import { Notice } from "obsidian";
 import type { PluginDataStore } from "@/application/ports/PluginDataStore";
-import { AddTopicResourceReferenceUseCase } from "@/application/use-cases/AddTopicResourceReferenceUseCase";
 import { CreateTopicUseCase } from "@/application/use-cases/CreateTopicUseCase";
 import { DeleteTopicUseCase } from "@/application/use-cases/DeleteTopicUseCase";
 import { LinkQuestionNotebookUseCase } from "@/application/use-cases/LinkQuestionNotebookUseCase";
 import { UpdateTopicUseCase } from "@/application/use-cases/UpdateTopicUseCase";
 import type { Topic } from "@/domain/entities/Topic";
-import type { CorvoPluginData } from "@/domain/types/CorvoPluginData";
+import type { LeifPluginData } from "@/domain/types/LeifPluginData";
 import { DomHelpers } from "@/ui/view/shared/DomHelpers";
 
 /**
  * Topics tab component with unified CRUD pattern.
- * Table with inline editing + expandable detail rows for resource references and notebook.
+ * Table with inline editing + expandable detail rows for question notebooks.
  */
 export class TopicsTab {
   private readonly createTopicUseCase: CreateTopicUseCase;
-  private readonly addTopicResourceReferenceUseCase: AddTopicResourceReferenceUseCase;
   private readonly linkQuestionNotebookUseCase: LinkQuestionNotebookUseCase;
   private readonly deleteTopicUseCase: DeleteTopicUseCase;
   private readonly updateTopicUseCase: UpdateTopicUseCase;
@@ -23,28 +21,23 @@ export class TopicsTab {
   private selectedSubjectId: string | null = null;
   private editingTopicId: string | null = null;
   private expandedTopicId: string | null = null;
-  private isCreatingNew = false;
 
   constructor(
     private readonly dataStore: PluginDataStore,
     private readonly onUpdate: () => Promise<void>
   ) {
     this.createTopicUseCase = new CreateTopicUseCase(dataStore);
-    this.addTopicResourceReferenceUseCase = new AddTopicResourceReferenceUseCase(dataStore);
-    this.linkQuestionNotebookUseCase = new LinkQuestionNotebookUseCase(dataStore);
     this.deleteTopicUseCase = new DeleteTopicUseCase(dataStore);
+    this.linkQuestionNotebookUseCase = new LinkQuestionNotebookUseCase(dataStore);
     this.updateTopicUseCase = new UpdateTopicUseCase(dataStore);
   }
 
-  async render(container: HTMLElement, data: CorvoPluginData): Promise<void> {
-    const header = DomHelpers.createElement("div", "corvo-section-header");
+  async render(container: HTMLElement, data: LeifPluginData): Promise<void> {
+    const header = DomHelpers.createElement("div", "leif-section-header");
     header.appendChild(DomHelpers.createSectionTitle("Assuntos e Questões"));
     header.appendChild(
       DomHelpers.createIconButton("add", "Novo assunto", {
-        onClick: async () => {
-          this.isCreatingNew = true;
-          await this.onUpdate();
-        }
+        onClick: () => this.openCreateTopicModal(this.getSelectedSubject(data)?.id ?? "")
       })
     );
     container.appendChild(header);
@@ -61,10 +54,6 @@ export class TopicsTab {
     }
 
     container.appendChild(this.renderSubjectPicker(data));
-
-    if (this.isCreatingNew) {
-      container.appendChild(this.renderCreateTopicForm(subject.id));
-    }
 
     const topics = data.topics
       .filter((topic) => topic.subjectId === subject.id)
@@ -106,23 +95,24 @@ export class TopicsTab {
     container.appendChild(card);
   }
 
-  private renderDisplayRow(topic: Topic, data: CorvoPluginData): HTMLElement {
+  private renderDisplayRow(topic: Topic, data: LeifPluginData): HTMLElement {
     const tr = DomHelpers.createElement("tr");
-    const hasDetails = topic.resourceReferences.length > 0 || topic.questionNotebook;
+    tr.dataset.topicId = topic.id;
+    const hasDetails = Boolean(topic.questionNotebook);
 
     tr.appendChild(DomHelpers.createCell(String(topic.order)));
     tr.appendChild(DomHelpers.createCell(topic.name));
-    tr.appendChild(DomHelpers.createCell(topic.questionNotebook?.name ?? "—"));
+    tr.appendChild(DomHelpers.createCell(null, this.renderNotebookCell(topic)));
     tr.appendChild(DomHelpers.createCell(String(topic.questionNotebook?.solvedQuestions ?? 0)));
     tr.appendChild(DomHelpers.createCell(String(topic.questionNotebook?.correctAnswers ?? 0)));
 
-    const actions = DomHelpers.createElement("div", "corvo-inline-actions corvo-inline-actions-compact");
+    const actions = DomHelpers.createElement("div", "leif-inline-actions leif-inline-actions-compact");
     actions.appendChild(
       DomHelpers.createIconButton(
         this.expandedTopicId === topic.id ? "collapse" : "expand",
         this.expandedTopicId === topic.id ? "Recolher" : "Expandir",
         {
-          className: `corvo-icon-button ${hasDetails ? "" : "corvo-expand-button"}`,
+          className: `leif-icon-button ${hasDetails ? "" : "leif-expand-button"}`,
           onClick: async () => {
             this.expandedTopicId = this.expandedTopicId === topic.id ? null : topic.id;
             await this.onUpdate();
@@ -160,9 +150,35 @@ export class TopicsTab {
     return tr;
   }
 
-  private renderEditableRow(topic: Topic, data: CorvoPluginData): HTMLElement {
+  private renderNotebookCell(topic: Topic): HTMLElement {
+    const notebook = topic.questionNotebook;
+
+    if (!notebook) {
+      return DomHelpers.createParagraph("—");
+    }
+
+    if (!notebook.url) {
+      return DomHelpers.createParagraph(notebook.name);
+    }
+
+    const link = DomHelpers.createElement("a");
+    link.href = notebook.url;
+    link.textContent = notebook.name;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.dataset.topicNotebookUrl = topic.id;
+    link.addEventListener("click", (event) => {
+      event.preventDefault();
+      window.open(notebook.url, "_blank", "noopener");
+    });
+
+    return link;
+  }
+
+  private renderEditableRow(topic: Topic, data: LeifPluginData): HTMLElement {
     const tr = DomHelpers.createElement("tr");
-    tr.className = "corvo-editing-row";
+    tr.className = "leif-editing-row";
+    tr.dataset.topicId = topic.id;
 
     const nameInput = DomHelpers.createCompactInput("text", "Nome", topic.name);
     const solvedInput = DomHelpers.createCompactInput(
@@ -207,7 +223,7 @@ export class TopicsTab {
       }
     });
 
-    const actions = DomHelpers.createElement("div", "corvo-inline-actions corvo-inline-actions-compact");
+    const actions = DomHelpers.createElement("div", "leif-inline-actions leif-inline-actions-compact");
     actions.appendChild(saveButton);
     actions.appendChild(cancelButton);
 
@@ -224,106 +240,57 @@ export class TopicsTab {
     return tr;
   }
 
-  private renderDetailRow(topic: Topic, data: CorvoPluginData): HTMLElement {
+  private renderDetailRow(topic: Topic, data: LeifPluginData): HTMLElement {
     const tr = DomHelpers.createElement("tr");
-    tr.className = "corvo-detail-row";
+    tr.className = "leif-detail-row";
 
     const td = DomHelpers.createElement("td");
     td.colSpan = 6;
 
-    const content = DomHelpers.createElement("div", "corvo-detail-content");
+    const content = DomHelpers.createElement("div", "leif-detail-content");
 
-    // Resource references list
-    if (topic.resourceReferences.length > 0) {
-      const list = DomHelpers.createElement("div", "corvo-detail-list");
-      topic.resourceReferences.forEach((ref) => {
-        const row = DomHelpers.createElement("div", "corvo-detail-list-item");
-        row.appendChild(DomHelpers.createParagraph(`${ref.type}: ${ref.title}`));
-        if (ref.url) {
-          const link = DomHelpers.createElement("a");
-          link.href = ref.url;
-          link.textContent = "🔗";
-          link.target = "_blank";
-          row.appendChild(link);
-        }
-        list.appendChild(row);
-      });
-      content.appendChild(list);
-    }
+    const notebookName = DomHelpers.createInput("text", "Caderno", topic.questionNotebook?.name ?? "");
+    const notebookUrl = DomHelpers.createInput("url", "URL", topic.questionNotebook?.url ?? "");
+    const notebookSolved = DomHelpers.createInput(
+      "number",
+      "Resolv.",
+      String(topic.questionNotebook?.solvedQuestions ?? 0)
+    );
+    const notebookCorrect = DomHelpers.createInput(
+      "number",
+      "Acert.",
+      String(topic.questionNotebook?.correctAnswers ?? 0)
+    );
 
-    // Add resource reference form
-    const titleInput = DomHelpers.createInput("text", "Título");
-    const typeSelect = DomHelpers.createSelect([
-      ["pdf", "pdf"],
-      ["video", "video"],
-      ["link", "link"],
-      ["question-notebook", "question-notebook"]
-    ]);
-    const urlInput = DomHelpers.createInput("url", "URL");
-
-    const resourceForm = DomHelpers.createForm(async () => {
+    const notebookForm = DomHelpers.createForm(async () => {
       try {
-        await this.addTopicResourceReferenceUseCase.execute({
+        await this.linkQuestionNotebookUseCase.execute({
           topicId: topic.id,
-          resourceReference: {
-            id: `${topic.id}-resource-${Date.now()}`,
-            title: titleInput.value,
-            type: typeSelect.value as "pdf" | "video" | "link" | "question-notebook",
-            url: urlInput.value
+          questionNotebook: {
+            id: topic.questionNotebook?.id ?? `${topic.id}-notebook`,
+            name: notebookName.value,
+            url: notebookUrl.value,
+            solvedQuestions: Number(notebookSolved.value),
+            correctAnswers: Number(notebookCorrect.value)
           }
         });
-        titleInput.value = "";
-        urlInput.value = "";
         await this.onUpdate();
       } catch (error) {
-        this.notifyError(error, "Não foi possível adicionar referência.");
+        this.notifyError(error, "Não foi possível vincular caderno.");
       }
     });
 
-    resourceForm.className = "corvo-detail-form";
-    resourceForm.append(
-      DomHelpers.createLabel("Título", titleInput),
-      DomHelpers.createLabel("Tipo", typeSelect),
-      DomHelpers.createLabel("URL", urlInput),
-      DomHelpers.createIconButton("add", "Adicionar", { onClick: () => resourceForm.requestSubmit() })
+    notebookForm.className = "leif-detail-form";
+    notebookForm.dataset.topicNotebookForm = topic.id;
+    notebookForm.append(
+      DomHelpers.createLabel("Caderno", notebookName),
+      DomHelpers.createLabel("URL", notebookUrl),
+      DomHelpers.createLabel("Resolv.", notebookSolved),
+      DomHelpers.createLabel("Acert.", notebookCorrect),
+      DomHelpers.createIconButton("save", "Salvar", { onClick: () => notebookForm.requestSubmit() })
     );
 
-    content.appendChild(resourceForm);
-
-    // Notebook form
-    if (topic.questionNotebook) {
-      const notebookName = DomHelpers.createInput("text", "Nome", topic.questionNotebook.name);
-      const notebookSolved = DomHelpers.createInput("number", "Resolv.", String(topic.questionNotebook.solvedQuestions));
-      const notebookCorrect = DomHelpers.createInput("number", "Acert.", String(topic.questionNotebook.correctAnswers));
-
-      const notebookForm = DomHelpers.createForm(async () => {
-        try {
-          await this.linkQuestionNotebookUseCase.execute({
-            topicId: topic.id,
-            questionNotebook: {
-              id: topic.questionNotebook?.id ?? `${topic.id}-notebook`,
-              name: notebookName.value,
-              url: topic.questionNotebook?.url ?? "",
-              solvedQuestions: Number(notebookSolved.value),
-              correctAnswers: Number(notebookCorrect.value)
-            }
-          });
-          await this.onUpdate();
-        } catch (error) {
-          this.notifyError(error, "Não foi possível vincular caderno.");
-        }
-      });
-
-      notebookForm.className = "corvo-detail-form";
-      notebookForm.append(
-        DomHelpers.createLabel("Caderno", notebookName),
-        DomHelpers.createLabel("Resolv.", notebookSolved),
-        DomHelpers.createLabel("Acert.", notebookCorrect),
-        DomHelpers.createIconButton("save", "Salvar", { onClick: () => notebookForm.requestSubmit() })
-      );
-
-      content.appendChild(notebookForm);
-    }
+    content.appendChild(notebookForm);
 
     td.appendChild(content);
     tr.appendChild(td);
@@ -331,44 +298,40 @@ export class TopicsTab {
     return tr;
   }
 
-  private renderCreateTopicForm(subjectId: string): HTMLElement {
+  private openCreateTopicModal(subjectId: string): void {
     const nameInput = DomHelpers.createInput("text", "Nome do assunto");
     const orderInput = DomHelpers.createInput("number", "Ordem", "1");
 
-    const form = DomHelpers.createInlineForm(
-      "Novo assunto",
-      async () => {
-        try {
-          await this.createTopicUseCase.execute({
-            id: `${subjectId}-topic-${Date.now()}`,
-            subjectId,
-            name: nameInput.value,
-            order: Number(orderInput.value)
-          });
-          nameInput.value = "";
-          orderInput.value = "1";
-          this.isCreatingNew = false;
-          await this.onUpdate();
-        } catch (error) {
-          this.notifyError(error, "Não foi possível criar o assunto.");
-        }
-      },
-      () => {
-        this.isCreatingNew = false;
-        this.onUpdate();
+    const form = DomHelpers.createForm(async () => {
+      try {
+        await this.createTopicUseCase.execute({
+          id: `${subjectId}-topic-${Date.now()}`,
+          subjectId,
+          name: nameInput.value,
+          order: Number(orderInput.value)
+        });
+        modal.close();
+        await this.onUpdate();
+      } catch (error) {
+        this.notifyError(error, "Não foi possível criar o assunto.");
       }
-    );
+    });
 
-    const innerForm = form.querySelector("form")!;
-    innerForm.append(
+    form.append(
       DomHelpers.createLabel("Nome", nameInput),
       DomHelpers.createLabel("Ordem", orderInput)
     );
 
-    return form;
+    const modal = DomHelpers.createModal({
+      title: "Novo assunto",
+      content: form,
+      onSubmit: () => form.requestSubmit()
+    });
+
+    modal.open();
   }
 
-  private renderSubjectPicker(data: CorvoPluginData): HTMLElement {
+  private renderSubjectPicker(data: LeifPluginData): HTMLElement {
     const subjects = data.subjects
       .filter((subject) => subject.contestId === data.activeContestId)
       .sort((left, right) => left.order - right.order);
@@ -382,12 +345,12 @@ export class TopicsTab {
       await this.onUpdate();
     });
 
-    const wrapper = DomHelpers.createElement("div", "corvo-toolbar");
+    const wrapper = DomHelpers.createElement("div", "leif-toolbar");
     wrapper.appendChild(DomHelpers.createLabel("Matéria", select));
     return wrapper;
   }
 
-  private getSelectedSubject(data: CorvoPluginData): { id: string; name: string } | null {
+  private getSelectedSubject(data: LeifPluginData): { id: string; name: string } | null {
     const subjects = data.subjects
       .filter((subject) => subject.contestId === data.activeContestId)
       .sort((left, right) => left.order - right.order);

@@ -1,5 +1,5 @@
 /**
- * UI Constants for the Corvo plugin
+ * UI Constants for the Leif plugin
  */
 
 export const DATE_FORMAT = "dd/MM/yyyy";
@@ -30,9 +30,9 @@ export const ICON_NAMES = {
   download: "download"
 } as const;
 
-export type CorvoTabId = "dashboard" | "contests" | "cycle" | "items" | "topics" | "sessions" | "wall";
+export type LeifTabId = "dashboard" | "contests" | "cycle" | "items" | "topics" | "sessions" | "wall";
 
-export const TABS: Array<{ id: CorvoTabId; label: string; icon: string }> = [
+export const TABS: Array<{ id: LeifTabId; label: string; icon: string }> = [
   { id: "dashboard", label: "Dashboard", icon: ICON_NAMES.dashboard },
   { id: "contests", label: "Concursos", icon: ICON_NAMES.contests },
   { id: "cycle", label: "Ciclo e Matérias", icon: ICON_NAMES.cycle },

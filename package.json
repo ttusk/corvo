@@ -1,8 +1,8 @@
 {
-  "name": "corvo",
+  "name": "leif",
   "version": "0.1.0",
-  "private": true,
-  "description": "Corvo is an Obsidian plugin for managing study cycles for public exams.",
+  "description": "Plugin de Obsidian para acompanhar ciclo de estudos para concursos.",
+  "license": "MIT",
   "scripts": {
     "build": "node esbuild.config.mjs production",
     "dev": "node esbuild.config.mjs",

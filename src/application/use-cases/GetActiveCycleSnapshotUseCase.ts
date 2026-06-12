@@ -1,6 +1,7 @@
 import type { PluginDataStore } from "@/application/ports/PluginDataStore";
 import type { Subject } from "@/domain/entities/Subject";
 import { CycleService } from "@/domain/services/CycleService";
+import { ItemProgressService } from "@/domain/services/ItemProgressService";
 import { ActiveContestGuard } from "@/application/guards/ActiveContestGuard";
 import { NotFoundError } from "@/domain/errors/DomainErrors";
 
@@ -20,7 +21,8 @@ export class GetActiveCycleSnapshotUseCase {
 
   constructor(
     private readonly dataStore: PluginDataStore,
-    private readonly cycleService = new CycleService()
+    private readonly cycleService: CycleService = new CycleService(),
+    private readonly progressService: ItemProgressService = new ItemProgressService()
   ) {
     this.guard = new ActiveContestGuard(dataStore);
   }
@@ -43,13 +45,26 @@ export class GetActiveCycleSnapshotUseCase {
       currentState.currentSubjectId ?? undefined
     );
 
+    const subjectForNextItem = currentSubject ?? nextSubject;
+    const subjectItems = data.studyItems.filter(
+      (item) => item.subjectId === subjectForNextItem?.id
+    );
+    const isCompleted = this.progressService.buildCompletionPredicate(
+      subjectItems,
+      data.studySessions
+    );
+
     return {
       contestId: activeContestId,
       currentSubject,
       nextSubject,
       currentItemId: currentState.currentItemId,
-      nextItemId: currentSubject
-        ? this.cycleService.getNextItemId(currentSubject, currentState.currentItemId ?? undefined)
+      nextItemId: subjectForNextItem
+        ? this.cycleService.getNextItemId(
+            subjectForNextItem,
+            currentSubject ? currentState.currentItemId ?? undefined : undefined,
+            isCompleted
+          )
         : null
     };
   }

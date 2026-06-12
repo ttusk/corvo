@@ -1,4 +1,5 @@
 import type { PluginDataStore } from "@/application/ports/PluginDataStore";
+import { StudySessionType } from "@/domain/entities/StudySession";
 import { ActiveContestGuard } from "@/application/guards/ActiveContestGuard";
 
 export interface PdfItemProgress {
@@ -6,6 +7,9 @@ export interface PdfItemProgress {
   title: string;
   order: number;
   progressCount: number;
+  pagesReaded: number;
+  totalPages?: number;
+  completed: boolean;
   weight?: number;
   questionCount?: number;
 }
@@ -61,11 +65,11 @@ export class GetActiveContestProgressDashboardUseCase {
         .sort((left, right) => left.order - right.order);
 
       const items = subjectItems.map((studyItem) => {
-        const progressCount = data.studySessions
+        const pagesReaded = data.studySessions
           .filter(
             (session) =>
               session.contestId === activeContestId &&
-              session.type === "pdf" &&
+              session.type === StudySessionType.PDF &&
               session.studyItemId === studyItem.id
           )
           .reduce((total, session) => total + (session.pagesOrCount ?? 0), 0);
@@ -74,7 +78,13 @@ export class GetActiveContestProgressDashboardUseCase {
           studyItemId: studyItem.id,
           title: studyItem.title,
           order: studyItem.order,
-          progressCount,
+          progressCount: pagesReaded,
+          pagesReaded,
+          totalPages: studyItem.totalPages,
+          completed:
+            studyItem.totalPages !== undefined && studyItem.totalPages > 0
+              ? pagesReaded >= studyItem.totalPages
+              : false,
           weight: studyItem.weight,
           questionCount: studyItem.questionCount
         };
@@ -96,7 +106,7 @@ export class GetActiveContestProgressDashboardUseCase {
           (session) =>
             session.contestId === activeContestId &&
             session.subjectId === subject.id &&
-            session.type === "questions"
+            session.type === StudySessionType.QUESTIONS
         )
         .forEach((session) => {
           const date = session.studiedAt.slice(0, 10);

@@ -1,9 +1,9 @@
-import type { CorvoPluginData } from "@/domain/types/CorvoPluginData";
+import type { LeifPluginData } from "@/domain/types/LeifPluginData";
 
 /**
  * Versioned plugin data with schema version tracking
  */
-export interface VersionedData extends CorvoPluginData {
+export interface VersionedData extends LeifPluginData {
   schemaVersion: number;
 }
 
@@ -27,7 +27,7 @@ function deduplicateByKey<T>(items: T[], getKey: (item: T) => string): T[] {
  * Deduplicates all entity arrays in the plugin data.
  * Also deduplicates subjectIds within each contest.
  */
-function deduplicatePluginData(data: CorvoPluginData): CorvoPluginData {
+function deduplicatePluginData(data: LeifPluginData): LeifPluginData {
   return {
     ...data,
     contests: data.contests.map((contest) => ({
@@ -55,7 +55,7 @@ export class DataMigrationService {
    * @param data - The data to migrate (may be from any version)
    * @returns Migrated data at the current schema version
    */
-  migrate(data: any): CorvoPluginData {
+  migrate(data: any): LeifPluginData {
     const version = data.schemaVersion ?? 1;
     let current = data;
 

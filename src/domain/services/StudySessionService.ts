@@ -1,5 +1,6 @@
 import { Result } from "@/domain/types/Result";
 import { DomainError } from "@/domain/errors/DomainErrors";
+import { StudySessionType } from "@/domain/entities/StudySession";
 import type { StudySession } from "@/domain/entities/StudySession";
 import type { Topic } from "@/domain/entities/Topic";
 
@@ -24,7 +25,7 @@ export class StudySessionService {
       return Result.error(new DomainError("Session type is required"));
     }
 
-    const validTypes = ["pdf", "video", "questions"];
+    const validTypes = Object.values(StudySessionType);
     if (!validTypes.includes(session.type)) {
       return Result.error(new DomainError(`Invalid session type. Must be one of: ${validTypes.join(", ")}`));
     }
@@ -53,7 +54,7 @@ export class StudySessionService {
    * @returns Accuracy ratio or null if not applicable
    */
   calculateAccuracy(session: StudySession): number | null {
-    if (session.type !== "questions" || session.pagesOrCount === undefined || session.pagesOrCount === 0) {
+    if (session.type !== StudySessionType.QUESTIONS || session.pagesOrCount === undefined || session.pagesOrCount === 0) {
       return null;
     }
 
@@ -68,7 +69,7 @@ export class StudySessionService {
     const grouped = new Map<string, { questionCount: number; correctAnswers: number }>();
 
     sessions
-      .filter((s) => s.type === "questions")
+      .filter((s) => s.type === StudySessionType.QUESTIONS)
       .forEach((session) => {
         const date = session.studiedAt.slice(0, 10);
         const current = grouped.get(date) ?? { questionCount: 0, correctAnswers: 0 };

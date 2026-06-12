@@ -4,17 +4,17 @@
     "type": "split",
     "children": [
       {
-        "id": "d0b1f0e4e1e8f5c1",
+        "id": "da330c5c3fdd7634",
         "type": "tabs",
         "children": [
           {
-            "id": "welcome",
+            "id": "279bdb335d4d9742",
             "type": "leaf",
             "state": {
-              "type": "corvo-main-view",
+              "type": "leif-main-view",
               "state": {},
               "icon": "feather",
-              "title": "Corvo"
+              "title": "Leif"
             }
           }
         ]
@@ -177,11 +177,12 @@
       "graph:Open graph view": false,
       "canvas:Create new canvas": false,
       "command-palette:Open command palette": false,
-      "corvo:Abrir Corvo": false
+      "leif:Abrir Leif": false
     }
   },
-  "active": "welcome",
+  "active": "279bdb335d4d9742",
   "lastOpenFiles": [
+    "Notes/2026-06-12.md",
     "Welcome.md",
     "Notes/Ciclo de Estudos.md"
   ]

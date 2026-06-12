@@ -1,6 +1,13 @@
 import { ValidationError } from "@/domain/errors/DomainErrors";
 
-export type StudySessionType = "pdf" | "video" | "questions";
+export const StudySessionType = {
+  PDF: "pdf",
+  VIDEO: "video",
+  QUESTIONS: "questions"
+} as const;
+
+export type StudySessionType =
+  (typeof StudySessionType)[keyof typeof StudySessionType];
 
 /**
  * Represents a registered study session.

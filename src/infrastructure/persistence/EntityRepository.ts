@@ -1,6 +1,6 @@
 import { NotFoundError, AlreadyExistsError } from "@/domain/errors/DomainErrors";
 import type { PluginDataStore } from "@/application/ports/PluginDataStore";
-import type { CorvoPluginData } from "@/domain/types/CorvoPluginData";
+import type { LeifPluginData } from "@/domain/types/LeifPluginData";
 
 /**
  * Generic repository for managing entities in the plugin data store.
@@ -11,7 +11,7 @@ import type { CorvoPluginData } from "@/domain/types/CorvoPluginData";
 export class EntityRepository<T extends { id: string }> {
   constructor(
     private readonly dataStore: PluginDataStore,
-    private readonly entityKey: keyof CorvoPluginData
+    private readonly entityKey: keyof LeifPluginData
   ) {}
 
   /**

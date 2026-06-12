@@ -1,7 +1,7 @@
-import type { CorvoPluginData } from "@/domain/types/CorvoPluginData";
+import type { LeifPluginData } from "@/domain/types/LeifPluginData";
 
 export interface PluginDataStore {
-  load(): Promise<CorvoPluginData>;
-  save(data: CorvoPluginData): Promise<void>;
+  load(): Promise<LeifPluginData>;
+  save(data: LeifPluginData): Promise<void>;
 }
 

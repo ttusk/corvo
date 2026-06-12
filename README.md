@@ -1,65 +1,57 @@
-# Corvo
+# Leif
 
-Corvo is an Obsidian plugin for managing study cycles for public exams.
+Leif é um plugin para Obsidian voltado ao acompanhamento de estudos para concursos públicos.
 
-## Stack
+O objetivo do projeto é trazer para o Obsidian um fluxo estruturado de planejamento, execução e acompanhamento de estudos, com suporte a múltiplos concursos, ciclo de matérias, itens de estudo, assuntos, cadernos de questões, sessões registradas manualmente e mural de referências.
 
-- TypeScript
-- Obsidian API
-- Vitest
-- esbuild
+## Principais recursos
 
-## Architecture
+- Gestão de múltiplos concursos, com separação de dados por concurso.
+- Definição de concurso ativo para estudo e acompanhamento.
+- Cadastro de matérias com ordem, tempo planejado, etapa atual e status no ciclo.
+- Ciclo de estudo entre matérias ativas.
+- Recomendação determinística da matéria e do item a estudar no momento.
+- Cadastro de itens de estudo por matéria, com referências de PDF, vídeo e link.
+- Cadastro de assuntos por matéria.
+- Vínculo de caderno de questões por assunto, com link clicável.
+- Registro manual de sessões de estudo de PDF, vídeo e questões.
+- Acompanhamento de páginas lidas, questões resolvidas e acertos.
+- Dashboard com resumo por matéria.
+- Mural por concurso, com links, notas e informações de referência.
+- Exportação de dados em CSV.
+- Vault de exemplo com dados de demonstração.
 
-- `src/domain`: core entities and domain services
-- `src/application`: use case ports and data contracts
-- `src/infrastructure`: adapters for Obsidian and persistence
-- `src/ui`: plugin-facing commands, views, and settings
+## Modelo de organização
 
-## Commands
+O Leif organiza o estudo em torno do concurso ativo.
 
-- `npm install`
-- `npm run build`
-- `npm test`
+Cada concurso possui suas próprias matérias, itens, assuntos, sessões e mural. Uma mesma matéria pode existir em mais de um concurso, mas cada concurso mantém seu próprio recorte, prioridade e histórico.
 
-## Sample Vault
+### Concurso
 
-A pre-configured test vault is available in `sample-vault/`. It contains:
+É a unidade principal de organização. O concurso ativo define quais dados serão exibidos e usados no ciclo de estudo.
 
-- The Corvo plugin built and installed
-- Pre-loaded demo data for the **TCE-SP 2026** contest
-- 6 subjects, 15 study items, 7 topics, 30 study sessions
-- A second contest (**SEFAZ-BA 2026**) for testing switching
+### Matéria
 
-### How to use the sample vault
+Representa uma disciplina do concurso. Cada matéria pode ter ordem no ciclo, tempo planejado, etapa atual e status ativo ou inativo.
 
-1. Open Obsidian
-2. Click "Open folder as vault"
-3. Select the `sample-vault/` folder
-4. The Corvo plugin will be already enabled
-5. Click the raven icon in the left sidebar or use `Corvo: Abrir painel do Corvo`
+### Item
 
-## POC Commands
+Representa um material ou unidade de estudo dentro de uma matéria. É o local correto para associar PDFs, vídeos e links.
 
-- `Corvo: Abrir painel do Corvo`
-- `Corvo: Seed demo data`
-- `Corvo: Show active contest`
-- `Corvo: Switch active contest`
-- `Corvo: Show active contest subjects`
-- `Corvo: Reorder active contest subjects`
-- `Corvo: Toggle first subject active state`
-- `Corvo: Update first subject configuration`
-- `Corvo: Advance cycle`
-- `Corvo: Show cycle snapshot`
-- `Corvo: Show active contest wall`
-- `Corvo: Show active contest summary`
-- `Corvo: Register demo question session`
-- `Corvo: Register demo video session`
-- `Corvo: Reset plugin data`
+### Assunto
 
-## UI
+Representa um tópico da matéria. É o local correto para associar um caderno de questões.
 
-Corvo now includes a main Obsidian view with tabs for:
+### Sessão
+
+Representa um registro manual de estudo. Pode ser uma sessão de PDF, vídeo ou questões.
+
+## Interface
+
+O painel principal do Leif é aberto em uma visualização própria do Obsidian.
+
+As abas disponíveis são:
 
 - `Dashboard`
 - `Concursos`
@@ -69,4 +61,122 @@ Corvo now includes a main Obsidian view with tabs for:
 - `Sessões`
 - `Mural`
 
-Abra o Corvo pela faixa lateral esquerda, pela paleta de comandos com `Corvo: Abrir painel do Corvo` ou pelo botão da aba de configurações do plugin.
+O painel pode ser aberto pela faixa lateral esquerda ou pela paleta de comandos com:
+
+```text
+Leif: Abrir painel do Leif
+```
+
+## Instalação para desenvolvimento
+
+Clone o repositório e instale as dependências:
+
+```bash
+npm install
+```
+
+Gere o build de produção:
+
+```bash
+npm run build
+```
+
+Execute a suíte de testes:
+
+```bash
+npm test
+```
+
+Durante o desenvolvimento, use:
+
+```bash
+npm run dev
+```
+
+## Vault de exemplo
+
+O repositório inclui um vault de demonstração em `sample-vault/`.
+
+Esse vault contém:
+
+- plugin Leif já instalado;
+- dados de demonstração para três concursos;
+- matérias, itens, assuntos, cadernos de questões e sessões já cadastrados;
+- configuração pronta para alternar entre concursos.
+
+Para usar:
+
+1. Abra o Obsidian.
+2. Selecione `Open folder as vault`.
+3. Escolha a pasta `sample-vault/`.
+4. Abra o Leif pela faixa lateral esquerda ou pela paleta de comandos.
+
+Ao executar `npm run build`, o bundle é copiado automaticamente para `sample-vault/.obsidian/plugins/leif/`.
+
+## Comandos disponíveis
+
+Além do painel principal, o plugin registra comandos auxiliares para demonstração e desenvolvimento:
+
+- `Leif: Abrir painel do Leif`
+- `Leif: Seed demo data`
+- `Leif: Show active contest`
+- `Leif: Switch active contest`
+- `Leif: Show active contest subjects`
+- `Leif: Reorder active contest subjects`
+- `Leif: Toggle first subject active state`
+- `Leif: Update first subject configuration`
+- `Leif: Advance cycle`
+- `Leif: Show cycle snapshot`
+- `Leif: Show active contest wall`
+- `Leif: Show active contest summary`
+- `Leif: Register demo question session`
+- `Leif: Register demo video session`
+- `Leif: Reset plugin data`
+
+## Arquitetura
+
+O projeto segue uma arquitetura em camadas, com separação entre domínio, casos de uso, infraestrutura e interface.
+
+```text
+src/
+  domain/          Entidades, serviços de domínio e erros
+  application/     Casos de uso, portas, validações e guards
+  infrastructure/  Persistência, migrations, seed e adapters
+  ui/              Comandos, view principal e componentes
+```
+
+### Stack
+
+- TypeScript
+- Obsidian API
+- Vitest
+- esbuild
+
+## Qualidade
+
+A base possui testes automatizados para regras de domínio, casos de uso, persistência, comandos e fluxos principais da UI.
+
+Antes de abrir uma contribuição, rode:
+
+```bash
+npm test
+npm run build
+```
+
+## Contribuição
+
+Contribuições são bem-vindas.
+
+Para propor uma alteração:
+
+1. Abra uma issue descrevendo o problema ou melhoria.
+2. Crie uma branch a partir da branch principal.
+3. Implemente a mudança com testes quando aplicável.
+4. Garanta que `npm test` e `npm run build` passam.
+5. Abra um pull request com uma descrição objetiva da alteração.
+
+## Licença
+
+Este projeto é de código aberto e está licenciado sob os termos da licença MIT.
+
+Consulte o arquivo `LICENSE` para mais detalhes.

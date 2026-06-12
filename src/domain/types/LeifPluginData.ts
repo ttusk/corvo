@@ -5,7 +5,7 @@ import type { StudySession } from "@/domain/entities/StudySession";
 import type { Subject } from "@/domain/entities/Subject";
 import type { Topic } from "@/domain/entities/Topic";
 
-export interface CorvoPluginData {
+export interface LeifPluginData {
   version: 1;
   schemaVersion?: number;
   activeContestId: string | null;
@@ -17,7 +17,7 @@ export interface CorvoPluginData {
   studySessions: StudySession[];
 }
 
-export function createDefaultCorvoPluginData(): CorvoPluginData {
+export function createDefaultLeifPluginData(): LeifPluginData {
   return {
     version: 1,
     schemaVersion: 1,

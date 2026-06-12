@@ -12,7 +12,6 @@ import {
   UpdateSubjectConfigurationValidator,
   DeleteStudySessionValidator,
   AddStudyItemResourceReferenceValidator,
-  AddTopicResourceReferenceValidator,
   LinkQuestionNotebookValidator,
   UpdateContestWallValidator
 } from "@/application/validation/InputValidators";
@@ -133,15 +132,14 @@ describe("Input Validators", () => {
       });
       expect(result.valid).toBe(true);
     });
-  });
 
-  describe("AddTopicResourceReferenceValidator", () => {
-    it("validates a correct input", () => {
-      const result = new AddTopicResourceReferenceValidator().validate({
-        topicId: "topic-1",
-        resourceReference: { id: "res-1", title: "PDF", type: "pdf" }
+    it("rejects question notebooks as generic item resources", () => {
+      const result = new AddStudyItemResourceReferenceValidator().validate({
+        studyItemId: "item-1",
+        resourceReference: { id: "res-1", title: "Caderno", type: "question-notebook" }
       });
-      expect(result.valid).toBe(true);
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContain("Resource reference type must be one of: pdf, video, link");
     });
   });
 

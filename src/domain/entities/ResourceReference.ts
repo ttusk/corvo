@@ -1,6 +1,6 @@
 import { ValidationError } from "@/domain/errors/DomainErrors";
 
-export type ResourceReferenceType = "pdf" | "video" | "question-notebook" | "link";
+export type ResourceReferenceType = "pdf" | "video" | "link";
 
 /**
  * Represents a resource reference (PDF, video, link, etc.).

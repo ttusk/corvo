@@ -1,0 +1,1196 @@
+{
+  "version": 1,
+  "schemaVersion": 1,
+  "activeContestId": "tce-sp-2026",
+  "contests": [
+    {
+      "id": "tce-sp-2026",
+      "name": "TCE-SP Auditor 2026",
+      "subjectIds": [
+        "tce-constitutional",
+        "tce-portuguese",
+        "tce-external-control"
+      ],
+      "wall": {
+        "noticeLinks": [
+          {
+            "id": "tce-sp-2026-notice",
+            "label": "Edital TCE-SP Auditor 2026",
+            "url": "https://www.tcesp.org.br"
+          }
+        ],
+        "examLinks": [
+          {
+            "id": "tce-sp-2026-exam",
+            "label": "Prova TCE-SP 2023",
+            "url": "https://www.tcesp.org.br"
+          }
+        ],
+        "subjectSnapshots": [
+          {
+            "subjectId": "tce-portuguese",
+            "weight": 5,
+            "score": 8,
+            "targetItems": [
+              "tce-portuguese-item-1",
+              "tce-portuguese-item-2"
+            ]
+          },
+          {
+            "subjectId": "tce-constitutional",
+            "weight": 5,
+            "score": 7.5,
+            "targetItems": [
+              "tce-constitutional-item-1",
+              "tce-constitutional-item-2"
+            ]
+          },
+          {
+            "subjectId": "tce-external-control",
+            "weight": 5,
+            "score": 7,
+            "targetItems": [
+              "tce-external-control-item-1",
+              "tce-external-control-item-2"
+            ]
+          }
+        ],
+        "notes": "Priorizar Português, Constitucional e Controle Externo. Meta: 80 questões por dia."
+      }
+    },
+    {
+      "id": "sefaz-sp-2026",
+      "name": "SEFAZ-SP Fiscal 2026",
+      "subjectIds": [
+        "sefaz-tax-law",
+        "sefaz-accounting",
+        "sefaz-finance"
+      ],
+      "wall": {
+        "noticeLinks": [
+          {
+            "id": "sefaz-sp-2026-notice",
+            "label": "Edital SEFAZ-SP Fiscal 2026",
+            "url": "https://portal.fazenda.sp.gov.br"
+          }
+        ],
+        "examLinks": [
+          {
+            "id": "sefaz-sp-2026-exam",
+            "label": "Prova SEFAZ-SP 2013",
+            "url": "https://portal.fazenda.sp.gov.br"
+          }
+        ],
+        "subjectSnapshots": [
+          {
+            "subjectId": "sefaz-tax-law",
+            "weight": 7,
+            "score": 8,
+            "targetItems": [
+              "sefaz-tax-law-item-1",
+              "sefaz-tax-law-item-2"
+            ]
+          },
+          {
+            "subjectId": "sefaz-accounting",
+            "weight": 5,
+            "score": 7.5,
+            "targetItems": [
+              "sefaz-accounting-item-1",
+              "sefaz-accounting-item-2"
+            ]
+          },
+          {
+            "subjectId": "sefaz-finance",
+            "weight": 5,
+            "score": 7,
+            "targetItems": [
+              "sefaz-finance-item-1",
+              "sefaz-finance-item-2"
+            ]
+          }
+        ],
+        "notes": "Ciclo pesado em legislação tributária, contabilidade e matemática financeira."
+      }
+    },
+    {
+      "id": "trt-2-2026",
+      "name": "TRT-2 Analista 2026",
+      "subjectIds": [
+        "trt-labor-law",
+        "trt-labor-procedure",
+        "trt-portuguese"
+      ],
+      "wall": {
+        "noticeLinks": [
+          {
+            "id": "trt-2-2026-notice",
+            "label": "Edital TRT-2 Analista 2026",
+            "url": "https://www.trt2.jus.br"
+          }
+        ],
+        "examLinks": [
+          {
+            "id": "trt-2-2026-exam",
+            "label": "Prova TRT-2 2018",
+            "url": "https://www.trt2.jus.br"
+          }
+        ],
+        "subjectSnapshots": [
+          {
+            "subjectId": "trt-labor-law",
+            "weight": 6,
+            "score": 8,
+            "targetItems": [
+              "trt-labor-law-item-1",
+              "trt-labor-law-item-2"
+            ]
+          },
+          {
+            "subjectId": "trt-labor-procedure",
+            "weight": 5,
+            "score": 7.5,
+            "targetItems": [
+              "trt-labor-procedure-item-1",
+              "trt-labor-procedure-item-2"
+            ]
+          },
+          {
+            "subjectId": "trt-portuguese",
+            "weight": 4,
+            "score": 7,
+            "targetItems": [
+              "trt-portuguese-item-1",
+              "trt-portuguese-item-2"
+            ]
+          }
+        ],
+        "notes": "Manter recorrência alta em trabalho, processo do trabalho e língua portuguesa."
+      }
+    }
+  ],
+  "contestStates": [
+    {
+      "contestId": "tce-sp-2026",
+      "currentSubjectId": null,
+      "currentItemId": null
+    },
+    {
+      "contestId": "sefaz-sp-2026",
+      "currentSubjectId": null,
+      "currentItemId": null
+    },
+    {
+      "contestId": "trt-2-2026",
+      "currentSubjectId": null,
+      "currentItemId": null
+    }
+  ],
+  "subjects": [
+    {
+      "id": "tce-portuguese",
+      "contestId": "tce-sp-2026",
+      "name": "Português",
+      "order": 2,
+      "isActive": true,
+      "plannedStudyMinutes": 90,
+      "itemIds": [
+        "tce-portuguese-item-1",
+        "tce-portuguese-item-2"
+      ],
+      "topicIds": [
+        "tce-portuguese-interpretation",
+        "tce-portuguese-syntax"
+      ]
+    },
+    {
+      "id": "tce-constitutional",
+      "contestId": "tce-sp-2026",
+      "name": "Direito Constitucional",
+      "order": 1,
+      "isActive": true,
+      "plannedStudyMinutes": 100,
+      "itemIds": [
+        "tce-constitutional-item-1",
+        "tce-constitutional-item-2"
+      ],
+      "topicIds": [
+        "tce-constitutional-rights",
+        "tce-constitutional-state"
+      ]
+    },
+    {
+      "id": "tce-external-control",
+      "contestId": "tce-sp-2026",
+      "name": "Controle Externo",
+      "order": 3,
+      "isActive": true,
+      "plannedStudyMinutes": 80,
+      "itemIds": [
+        "tce-external-control-item-1",
+        "tce-external-control-item-2"
+      ],
+      "topicIds": [
+        "tce-control-courts",
+        "tce-control-audit"
+      ]
+    },
+    {
+      "id": "sefaz-tax-law",
+      "contestId": "sefaz-sp-2026",
+      "name": "Legislação Tributária",
+      "order": 1,
+      "isActive": true,
+      "plannedStudyMinutes": 120,
+      "itemIds": [
+        "sefaz-tax-law-item-1",
+        "sefaz-tax-law-item-2"
+      ],
+      "topicIds": [
+        "sefaz-tax-icms",
+        "sefaz-tax-credit"
+      ]
+    },
+    {
+      "id": "sefaz-accounting",
+      "contestId": "sefaz-sp-2026",
+      "name": "Contabilidade",
+      "order": 2,
+      "isActive": true,
+      "plannedStudyMinutes": 90,
+      "itemIds": [
+        "sefaz-accounting-item-1",
+        "sefaz-accounting-item-2"
+      ],
+      "topicIds": [
+        "sefaz-accounting-statements",
+        "sefaz-accounting-analysis"
+      ]
+    },
+    {
+      "id": "sefaz-finance",
+      "contestId": "sefaz-sp-2026",
+      "name": "Matemática Financeira",
+      "order": 3,
+      "isActive": true,
+      "plannedStudyMinutes": 70,
+      "itemIds": [
+        "sefaz-finance-item-1",
+        "sefaz-finance-item-2"
+      ],
+      "topicIds": [
+        "sefaz-finance-interest",
+        "sefaz-finance-amortization"
+      ]
+    },
+    {
+      "id": "trt-labor-law",
+      "contestId": "trt-2-2026",
+      "name": "Direito do Trabalho",
+      "order": 1,
+      "isActive": true,
+      "plannedStudyMinutes": 100,
+      "itemIds": [
+        "trt-labor-law-item-1",
+        "trt-labor-law-item-2"
+      ],
+      "topicIds": [
+        "trt-labor-contract",
+        "trt-labor-hours"
+      ]
+    },
+    {
+      "id": "trt-labor-procedure",
+      "contestId": "trt-2-2026",
+      "name": "Processo do Trabalho",
+      "order": 2,
+      "isActive": true,
+      "plannedStudyMinutes": 90,
+      "itemIds": [
+        "trt-labor-procedure-item-1",
+        "trt-labor-procedure-item-2"
+      ],
+      "topicIds": [
+        "trt-procedure-appeals",
+        "trt-procedure-execution"
+      ]
+    },
+    {
+      "id": "trt-portuguese",
+      "contestId": "trt-2-2026",
+      "name": "Português",
+      "order": 3,
+      "isActive": true,
+      "plannedStudyMinutes": 70,
+      "itemIds": [
+        "trt-portuguese-item-1",
+        "trt-portuguese-item-2"
+      ],
+      "topicIds": [
+        "trt-portuguese-official",
+        "trt-portuguese-punctuation"
+      ]
+    }
+  ],
+  "topics": [
+    {
+      "id": "tce-portuguese-interpretation",
+      "subjectId": "tce-portuguese",
+      "name": "Compreensão e interpretação",
+      "order": 1,
+      "resourceReferences": [],
+      "questionNotebook": {
+        "id": "tce-portuguese-interpretation-notebook",
+        "name": "Tec - Português TCE",
+        "url": "https://tec.example.com/tce-portugues",
+        "solvedQuestions": 40,
+        "correctAnswers": 34
+      }
+    },
+    {
+      "id": "tce-portuguese-syntax",
+      "subjectId": "tce-portuguese",
+      "name": "Concordância e regência",
+      "order": 2,
+      "resourceReferences": [],
+      "questionNotebook": {
+        "id": "tce-portuguese-syntax-notebook",
+        "name": "QConcursos - Sintaxe TCE",
+        "url": "https://qconcursos.example.com/tce-sintaxe",
+        "solvedQuestions": 35,
+        "correctAnswers": 30
+      }
+    },
+    {
+      "id": "tce-constitutional-rights",
+      "subjectId": "tce-constitutional",
+      "name": "Direitos e garantias fundamentais",
+      "order": 1,
+      "resourceReferences": [],
+      "questionNotebook": {
+        "id": "tce-constitutional-rights-notebook",
+        "name": "Tec - Direitos Fundamentais",
+        "url": "https://tec.example.com/direitos-fundamentais",
+        "solvedQuestions": 30,
+        "correctAnswers": 25
+      }
+    },
+    {
+      "id": "tce-constitutional-state",
+      "subjectId": "tce-constitutional",
+      "name": "Organização político-administrativa",
+      "order": 2,
+      "resourceReferences": [],
+      "questionNotebook": {
+        "id": "tce-constitutional-state-notebook",
+        "name": "QConcursos - Organização do Estado",
+        "url": "https://qconcursos.example.com/organizacao-estado",
+        "solvedQuestions": 25,
+        "correctAnswers": 20
+      }
+    },
+    {
+      "id": "tce-control-courts",
+      "subjectId": "tce-external-control",
+      "name": "Competências dos Tribunais de Contas",
+      "order": 1,
+      "resourceReferences": [],
+      "questionNotebook": {
+        "id": "tce-control-courts-notebook",
+        "name": "Tec - Controle Externo",
+        "url": "https://tec.example.com/controle-externo",
+        "solvedQuestions": 20,
+        "correctAnswers": 17
+      }
+    },
+    {
+      "id": "tce-control-audit",
+      "subjectId": "tce-external-control",
+      "name": "Auditoria governamental",
+      "order": 2,
+      "resourceReferences": [],
+      "questionNotebook": {
+        "id": "tce-control-audit-notebook",
+        "name": "Estratégia - Auditoria TCE",
+        "url": "https://estrategia.example.com/auditoria-tce",
+        "solvedQuestions": 18,
+        "correctAnswers": 14
+      }
+    },
+    {
+      "id": "sefaz-tax-icms",
+      "subjectId": "sefaz-tax-law",
+      "name": "Hipóteses de incidência do ICMS",
+      "order": 1,
+      "resourceReferences": [],
+      "questionNotebook": {
+        "id": "sefaz-tax-icms-notebook",
+        "name": "Tec - ICMS SP",
+        "url": "https://tec.example.com/icms-sp",
+        "solvedQuestions": 45,
+        "correctAnswers": 36
+      }
+    },
+    {
+      "id": "sefaz-tax-credit",
+      "subjectId": "sefaz-tax-law",
+      "name": "Lançamento e crédito tributário",
+      "order": 2,
+      "resourceReferences": [],
+      "questionNotebook": {
+        "id": "sefaz-tax-credit-notebook",
+        "name": "QConcursos - Crédito Tributário",
+        "url": "https://qconcursos.example.com/credito-tributario",
+        "solvedQuestions": 35,
+        "correctAnswers": 28
+      }
+    },
+    {
+      "id": "sefaz-accounting-statements",
+      "subjectId": "sefaz-accounting",
+      "name": "Balanço patrimonial e DRE",
+      "order": 1,
+      "resourceReferences": [],
+      "questionNotebook": {
+        "id": "sefaz-accounting-statements-notebook",
+        "name": "Tec - Contabilidade Geral",
+        "url": "https://tec.example.com/contabilidade-geral",
+        "solvedQuestions": 30,
+        "correctAnswers": 24
+      }
+    },
+    {
+      "id": "sefaz-accounting-analysis",
+      "subjectId": "sefaz-accounting",
+      "name": "Índices financeiros",
+      "order": 2,
+      "resourceReferences": [],
+      "questionNotebook": {
+        "id": "sefaz-accounting-analysis-notebook",
+        "name": "QConcursos - Análise de Balanços",
+        "url": "https://qconcursos.example.com/analise-balancos",
+        "solvedQuestions": 25,
+        "correctAnswers": 21
+      }
+    },
+    {
+      "id": "sefaz-finance-interest",
+      "subjectId": "sefaz-finance",
+      "name": "Taxas equivalentes",
+      "order": 1,
+      "resourceReferences": [],
+      "questionNotebook": {
+        "id": "sefaz-finance-interest-notebook",
+        "name": "Tec - Matemática Financeira",
+        "url": "https://tec.example.com/matematica-financeira",
+        "solvedQuestions": 25,
+        "correctAnswers": 19
+      }
+    },
+    {
+      "id": "sefaz-finance-amortization",
+      "subjectId": "sefaz-finance",
+      "name": "Tabela Price e SAC",
+      "order": 2,
+      "resourceReferences": [],
+      "questionNotebook": {
+        "id": "sefaz-finance-amortization-notebook",
+        "name": "Estratégia - Amortização",
+        "url": "https://estrategia.example.com/amortizacao",
+        "solvedQuestions": 20,
+        "correctAnswers": 15
+      }
+    },
+    {
+      "id": "trt-labor-contract",
+      "subjectId": "trt-labor-law",
+      "name": "Vínculo empregatício",
+      "order": 1,
+      "resourceReferences": [],
+      "questionNotebook": {
+        "id": "trt-labor-contract-notebook",
+        "name": "Tec - Direito do Trabalho",
+        "url": "https://tec.example.com/direito-trabalho",
+        "solvedQuestions": 35,
+        "correctAnswers": 29
+      }
+    },
+    {
+      "id": "trt-labor-hours",
+      "subjectId": "trt-labor-law",
+      "name": "Horas extras e adicionais",
+      "order": 2,
+      "resourceReferences": [],
+      "questionNotebook": {
+        "id": "trt-labor-hours-notebook",
+        "name": "QConcursos - Jornada",
+        "url": "https://qconcursos.example.com/jornada",
+        "solvedQuestions": 30,
+        "correctAnswers": 24
+      }
+    },
+    {
+      "id": "trt-procedure-appeals",
+      "subjectId": "trt-labor-procedure",
+      "name": "Recurso ordinário e revista",
+      "order": 1,
+      "resourceReferences": [],
+      "questionNotebook": {
+        "id": "trt-procedure-appeals-notebook",
+        "name": "Tec - Processo do Trabalho",
+        "url": "https://tec.example.com/processo-trabalho",
+        "solvedQuestions": 25,
+        "correctAnswers": 20
+      }
+    },
+    {
+      "id": "trt-procedure-execution",
+      "subjectId": "trt-labor-procedure",
+      "name": "Liquidação e execução",
+      "order": 2,
+      "resourceReferences": [],
+      "questionNotebook": {
+        "id": "trt-procedure-execution-notebook",
+        "name": "Estratégia - Execução Trabalhista",
+        "url": "https://estrategia.example.com/execucao-trabalhista",
+        "solvedQuestions": 20,
+        "correctAnswers": 16
+      }
+    },
+    {
+      "id": "trt-portuguese-official",
+      "subjectId": "trt-portuguese",
+      "name": "Comunicação oficial",
+      "order": 1,
+      "resourceReferences": [],
+      "questionNotebook": {
+        "id": "trt-portuguese-official-notebook",
+        "name": "Tec - Redação Oficial",
+        "url": "https://tec.example.com/redacao-oficial",
+        "solvedQuestions": 20,
+        "correctAnswers": 17
+      }
+    },
+    {
+      "id": "trt-portuguese-punctuation",
+      "subjectId": "trt-portuguese",
+      "name": "Uso da vírgula",
+      "order": 2,
+      "resourceReferences": [],
+      "questionNotebook": {
+        "id": "trt-portuguese-punctuation-notebook",
+        "name": "QConcursos - Pontuação",
+        "url": "https://qconcursos.example.com/pontuacao",
+        "solvedQuestions": 20,
+        "correctAnswers": 16
+      }
+    }
+  ],
+  "studyItems": [
+    {
+      "id": "tce-portuguese-item-1",
+      "subjectId": "tce-portuguese",
+      "title": "Interpretação de textos",
+      "order": 1,
+      "weight": 3,
+      "questionCount": 60,
+      "resourceReferences": [],
+      "totalPages": 110
+    },
+    {
+      "id": "tce-portuguese-item-2",
+      "subjectId": "tce-portuguese",
+      "title": "Sintaxe",
+      "order": 2,
+      "weight": 2,
+      "questionCount": 45,
+      "resourceReferences": [],
+      "totalPages": 85
+    },
+    {
+      "id": "tce-constitutional-item-1",
+      "subjectId": "tce-constitutional",
+      "title": "Direitos fundamentais",
+      "order": 1,
+      "weight": 3,
+      "questionCount": 50,
+      "resourceReferences": [],
+      "totalPages": 95
+    },
+    {
+      "id": "tce-constitutional-item-2",
+      "subjectId": "tce-constitutional",
+      "title": "Organização do Estado",
+      "order": 2,
+      "weight": 2,
+      "questionCount": 35,
+      "resourceReferences": [],
+      "totalPages": 70
+    },
+    {
+      "id": "tce-external-control-item-1",
+      "subjectId": "tce-external-control",
+      "title": "Tribunais de Contas",
+      "order": 1,
+      "weight": 3,
+      "questionCount": 45,
+      "resourceReferences": [],
+      "totalPages": 90
+    },
+    {
+      "id": "tce-external-control-item-2",
+      "subjectId": "tce-external-control",
+      "title": "Fiscalização contábil",
+      "order": 2,
+      "weight": 2,
+      "questionCount": 30,
+      "resourceReferences": [],
+      "totalPages": 65
+    },
+    {
+      "id": "sefaz-tax-law-item-1",
+      "subjectId": "sefaz-tax-law",
+      "title": "ICMS paulista",
+      "order": 1,
+      "weight": 4,
+      "questionCount": 80,
+      "resourceReferences": [],
+      "totalPages": 140
+    },
+    {
+      "id": "sefaz-tax-law-item-2",
+      "subjectId": "sefaz-tax-law",
+      "title": "Crédito tributário",
+      "order": 2,
+      "weight": 3,
+      "questionCount": 55,
+      "resourceReferences": [],
+      "totalPages": 100
+    },
+    {
+      "id": "sefaz-accounting-item-1",
+      "subjectId": "sefaz-accounting",
+      "title": "Demonstrações contábeis",
+      "order": 1,
+      "weight": 3,
+      "questionCount": 60,
+      "resourceReferences": [],
+      "totalPages": 120
+    },
+    {
+      "id": "sefaz-accounting-item-2",
+      "subjectId": "sefaz-accounting",
+      "title": "Análise de balanços",
+      "order": 2,
+      "weight": 2,
+      "questionCount": 40,
+      "resourceReferences": [],
+      "totalPages": 85
+    },
+    {
+      "id": "sefaz-finance-item-1",
+      "subjectId": "sefaz-finance",
+      "title": "Juros compostos",
+      "order": 1,
+      "weight": 3,
+      "questionCount": 40,
+      "resourceReferences": [],
+      "totalPages": 60
+    },
+    {
+      "id": "sefaz-finance-item-2",
+      "subjectId": "sefaz-finance",
+      "title": "Sistemas de amortização",
+      "order": 2,
+      "weight": 2,
+      "questionCount": 35,
+      "resourceReferences": [],
+      "totalPages": 70
+    },
+    {
+      "id": "trt-labor-law-item-1",
+      "subjectId": "trt-labor-law",
+      "title": "Contrato de trabalho",
+      "order": 1,
+      "weight": 3,
+      "questionCount": 55,
+      "resourceReferences": [],
+      "totalPages": 105
+    },
+    {
+      "id": "trt-labor-law-item-2",
+      "subjectId": "trt-labor-law",
+      "title": "Jornada e remuneração",
+      "order": 2,
+      "weight": 3,
+      "questionCount": 50,
+      "resourceReferences": [],
+      "totalPages": 90
+    },
+    {
+      "id": "trt-labor-procedure-item-1",
+      "subjectId": "trt-labor-procedure",
+      "title": "Recursos trabalhistas",
+      "order": 1,
+      "weight": 3,
+      "questionCount": 45,
+      "resourceReferences": [],
+      "totalPages": 88
+    },
+    {
+      "id": "trt-labor-procedure-item-2",
+      "subjectId": "trt-labor-procedure",
+      "title": "Execução trabalhista",
+      "order": 2,
+      "weight": 2,
+      "questionCount": 35,
+      "resourceReferences": [],
+      "totalPages": 72
+    },
+    {
+      "id": "trt-portuguese-item-1",
+      "subjectId": "trt-portuguese",
+      "title": "Redação oficial",
+      "order": 1,
+      "weight": 2,
+      "questionCount": 30,
+      "resourceReferences": [],
+      "totalPages": 55
+    },
+    {
+      "id": "trt-portuguese-item-2",
+      "subjectId": "trt-portuguese",
+      "title": "Pontuação",
+      "order": 2,
+      "weight": 2,
+      "questionCount": 35,
+      "resourceReferences": [],
+      "totalPages": 60
+    }
+  ],
+  "studySessions": [
+    {
+      "id": "tce-portuguese-session-1",
+      "contestId": "tce-sp-2026",
+      "type": "pdf",
+      "studiedAt": "2026-06-01T10:00:00.000Z",
+      "subjectId": "tce-portuguese",
+      "studyItemId": "tce-portuguese-item-1",
+      "topicId": "tce-portuguese-interpretation",
+      "pagesOrCount": 28,
+      "completed": true
+    },
+    {
+      "id": "tce-portuguese-session-2",
+      "contestId": "tce-sp-2026",
+      "type": "questions",
+      "studiedAt": "2026-06-01T10:00:00.000Z",
+      "subjectId": "tce-portuguese",
+      "studyItemId": "tce-portuguese-item-1",
+      "topicId": "tce-portuguese-interpretation",
+      "pagesOrCount": 40,
+      "correctAnswers": 34,
+      "completed": true
+    },
+    {
+      "id": "tce-portuguese-session-3",
+      "contestId": "tce-sp-2026",
+      "type": "pdf",
+      "studiedAt": "2026-06-03T10:00:00.000Z",
+      "subjectId": "tce-portuguese",
+      "studyItemId": "tce-portuguese-item-2",
+      "topicId": "tce-portuguese-syntax",
+      "pagesOrCount": 22,
+      "completed": true
+    },
+    {
+      "id": "tce-portuguese-session-4",
+      "contestId": "tce-sp-2026",
+      "type": "questions",
+      "studiedAt": "2026-06-04T10:00:00.000Z",
+      "subjectId": "tce-portuguese",
+      "studyItemId": "tce-portuguese-item-2",
+      "topicId": "tce-portuguese-syntax",
+      "pagesOrCount": 35,
+      "correctAnswers": 30,
+      "completed": true
+    },
+    {
+      "id": "tce-constitutional-session-1",
+      "contestId": "tce-sp-2026",
+      "type": "pdf",
+      "studiedAt": "2026-06-02T10:00:00.000Z",
+      "subjectId": "tce-constitutional",
+      "studyItemId": "tce-constitutional-item-1",
+      "topicId": "tce-constitutional-rights",
+      "pagesOrCount": 24,
+      "completed": true
+    },
+    {
+      "id": "tce-constitutional-session-2",
+      "contestId": "tce-sp-2026",
+      "type": "questions",
+      "studiedAt": "2026-06-02T10:00:00.000Z",
+      "subjectId": "tce-constitutional",
+      "studyItemId": "tce-constitutional-item-1",
+      "topicId": "tce-constitutional-rights",
+      "pagesOrCount": 30,
+      "correctAnswers": 25,
+      "completed": true
+    },
+    {
+      "id": "tce-constitutional-session-3",
+      "contestId": "tce-sp-2026",
+      "type": "video",
+      "studiedAt": "2026-06-05T10:00:00.000Z",
+      "subjectId": "tce-constitutional",
+      "studyItemId": "tce-constitutional-item-2",
+      "topicId": "tce-constitutional-state",
+      "pagesOrCount": 1,
+      "completed": true
+    },
+    {
+      "id": "tce-constitutional-session-4",
+      "contestId": "tce-sp-2026",
+      "type": "questions",
+      "studiedAt": "2026-06-06T10:00:00.000Z",
+      "subjectId": "tce-constitutional",
+      "studyItemId": "tce-constitutional-item-2",
+      "topicId": "tce-constitutional-state",
+      "pagesOrCount": 25,
+      "correctAnswers": 20,
+      "completed": true
+    },
+    {
+      "id": "tce-external-control-session-1",
+      "contestId": "tce-sp-2026",
+      "type": "pdf",
+      "studiedAt": "2026-06-07T10:00:00.000Z",
+      "subjectId": "tce-external-control",
+      "studyItemId": "tce-external-control-item-1",
+      "topicId": "tce-control-courts",
+      "pagesOrCount": 18,
+      "completed": true
+    },
+    {
+      "id": "tce-external-control-session-2",
+      "contestId": "tce-sp-2026",
+      "type": "questions",
+      "studiedAt": "2026-06-07T10:00:00.000Z",
+      "subjectId": "tce-external-control",
+      "studyItemId": "tce-external-control-item-1",
+      "topicId": "tce-control-courts",
+      "pagesOrCount": 20,
+      "correctAnswers": 17,
+      "completed": true
+    },
+    {
+      "id": "tce-external-control-session-3",
+      "contestId": "tce-sp-2026",
+      "type": "pdf",
+      "studiedAt": "2026-06-08T10:00:00.000Z",
+      "subjectId": "tce-external-control",
+      "studyItemId": "tce-external-control-item-2",
+      "topicId": "tce-control-audit",
+      "pagesOrCount": 20,
+      "completed": true
+    },
+    {
+      "id": "tce-external-control-session-4",
+      "contestId": "tce-sp-2026",
+      "type": "questions",
+      "studiedAt": "2026-06-08T10:00:00.000Z",
+      "subjectId": "tce-external-control",
+      "studyItemId": "tce-external-control-item-2",
+      "topicId": "tce-control-audit",
+      "pagesOrCount": 18,
+      "correctAnswers": 14,
+      "completed": true
+    },
+    {
+      "id": "sefaz-tax-law-session-1",
+      "contestId": "sefaz-sp-2026",
+      "type": "pdf",
+      "studiedAt": "2026-06-01T10:00:00.000Z",
+      "subjectId": "sefaz-tax-law",
+      "studyItemId": "sefaz-tax-law-item-1",
+      "topicId": "sefaz-tax-icms",
+      "pagesOrCount": 35,
+      "completed": true
+    },
+    {
+      "id": "sefaz-tax-law-session-2",
+      "contestId": "sefaz-sp-2026",
+      "type": "questions",
+      "studiedAt": "2026-06-01T10:00:00.000Z",
+      "subjectId": "sefaz-tax-law",
+      "studyItemId": "sefaz-tax-law-item-1",
+      "topicId": "sefaz-tax-icms",
+      "pagesOrCount": 45,
+      "correctAnswers": 36,
+      "completed": true
+    },
+    {
+      "id": "sefaz-tax-law-session-3",
+      "contestId": "sefaz-sp-2026",
+      "type": "pdf",
+      "studiedAt": "2026-06-04T10:00:00.000Z",
+      "subjectId": "sefaz-tax-law",
+      "studyItemId": "sefaz-tax-law-item-2",
+      "topicId": "sefaz-tax-credit",
+      "pagesOrCount": 30,
+      "completed": true
+    },
+    {
+      "id": "sefaz-tax-law-session-4",
+      "contestId": "sefaz-sp-2026",
+      "type": "questions",
+      "studiedAt": "2026-06-05T10:00:00.000Z",
+      "subjectId": "sefaz-tax-law",
+      "studyItemId": "sefaz-tax-law-item-2",
+      "topicId": "sefaz-tax-credit",
+      "pagesOrCount": 35,
+      "correctAnswers": 28,
+      "completed": true
+    },
+    {
+      "id": "sefaz-accounting-session-1",
+      "contestId": "sefaz-sp-2026",
+      "type": "pdf",
+      "studiedAt": "2026-06-02T10:00:00.000Z",
+      "subjectId": "sefaz-accounting",
+      "studyItemId": "sefaz-accounting-item-1",
+      "topicId": "sefaz-accounting-statements",
+      "pagesOrCount": 26,
+      "completed": true
+    },
+    {
+      "id": "sefaz-accounting-session-2",
+      "contestId": "sefaz-sp-2026",
+      "type": "questions",
+      "studiedAt": "2026-06-02T10:00:00.000Z",
+      "subjectId": "sefaz-accounting",
+      "studyItemId": "sefaz-accounting-item-1",
+      "topicId": "sefaz-accounting-statements",
+      "pagesOrCount": 30,
+      "correctAnswers": 24,
+      "completed": true
+    },
+    {
+      "id": "sefaz-accounting-session-3",
+      "contestId": "sefaz-sp-2026",
+      "type": "video",
+      "studiedAt": "2026-06-06T10:00:00.000Z",
+      "subjectId": "sefaz-accounting",
+      "studyItemId": "sefaz-accounting-item-2",
+      "topicId": "sefaz-accounting-analysis",
+      "pagesOrCount": 1,
+      "completed": true
+    },
+    {
+      "id": "sefaz-accounting-session-4",
+      "contestId": "sefaz-sp-2026",
+      "type": "questions",
+      "studiedAt": "2026-06-07T10:00:00.000Z",
+      "subjectId": "sefaz-accounting",
+      "studyItemId": "sefaz-accounting-item-2",
+      "topicId": "sefaz-accounting-analysis",
+      "pagesOrCount": 25,
+      "correctAnswers": 21,
+      "completed": true
+    },
+    {
+      "id": "sefaz-finance-session-1",
+      "contestId": "sefaz-sp-2026",
+      "type": "pdf",
+      "studiedAt": "2026-06-03T10:00:00.000Z",
+      "subjectId": "sefaz-finance",
+      "studyItemId": "sefaz-finance-item-1",
+      "topicId": "sefaz-finance-interest",
+      "pagesOrCount": 18,
+      "completed": true
+    },
+    {
+      "id": "sefaz-finance-session-2",
+      "contestId": "sefaz-sp-2026",
+      "type": "questions",
+      "studiedAt": "2026-06-03T10:00:00.000Z",
+      "subjectId": "sefaz-finance",
+      "studyItemId": "sefaz-finance-item-1",
+      "topicId": "sefaz-finance-interest",
+      "pagesOrCount": 25,
+      "correctAnswers": 19,
+      "completed": true
+    },
+    {
+      "id": "sefaz-finance-session-3",
+      "contestId": "sefaz-sp-2026",
+      "type": "pdf",
+      "studiedAt": "2026-06-08T10:00:00.000Z",
+      "subjectId": "sefaz-finance",
+      "studyItemId": "sefaz-finance-item-2",
+      "topicId": "sefaz-finance-amortization",
+      "pagesOrCount": 20,
+      "completed": true
+    },
+    {
+      "id": "sefaz-finance-session-4",
+      "contestId": "sefaz-sp-2026",
+      "type": "questions",
+      "studiedAt": "2026-06-08T10:00:00.000Z",
+      "subjectId": "sefaz-finance",
+      "studyItemId": "sefaz-finance-item-2",
+      "topicId": "sefaz-finance-amortization",
+      "pagesOrCount": 20,
+      "correctAnswers": 15,
+      "completed": true
+    },
+    {
+      "id": "trt-labor-law-session-1",
+      "contestId": "trt-2-2026",
+      "type": "pdf",
+      "studiedAt": "2026-06-01T10:00:00.000Z",
+      "subjectId": "trt-labor-law",
+      "studyItemId": "trt-labor-law-item-1",
+      "topicId": "trt-labor-contract",
+      "pagesOrCount": 30,
+      "completed": true
+    },
+    {
+      "id": "trt-labor-law-session-2",
+      "contestId": "trt-2-2026",
+      "type": "questions",
+      "studiedAt": "2026-06-01T10:00:00.000Z",
+      "subjectId": "trt-labor-law",
+      "studyItemId": "trt-labor-law-item-1",
+      "topicId": "trt-labor-contract",
+      "pagesOrCount": 35,
+      "correctAnswers": 29,
+      "completed": true
+    },
+    {
+      "id": "trt-labor-law-session-3",
+      "contestId": "trt-2-2026",
+      "type": "pdf",
+      "studiedAt": "2026-06-05T10:00:00.000Z",
+      "subjectId": "trt-labor-law",
+      "studyItemId": "trt-labor-law-item-2",
+      "topicId": "trt-labor-hours",
+      "pagesOrCount": 25,
+      "completed": true
+    },
+    {
+      "id": "trt-labor-law-session-4",
+      "contestId": "trt-2-2026",
+      "type": "questions",
+      "studiedAt": "2026-06-06T10:00:00.000Z",
+      "subjectId": "trt-labor-law",
+      "studyItemId": "trt-labor-law-item-2",
+      "topicId": "trt-labor-hours",
+      "pagesOrCount": 30,
+      "correctAnswers": 24,
+      "completed": true
+    },
+    {
+      "id": "trt-labor-procedure-session-1",
+      "contestId": "trt-2-2026",
+      "type": "pdf",
+      "studiedAt": "2026-06-02T10:00:00.000Z",
+      "subjectId": "trt-labor-procedure",
+      "studyItemId": "trt-labor-procedure-item-1",
+      "topicId": "trt-procedure-appeals",
+      "pagesOrCount": 22,
+      "completed": true
+    },
+    {
+      "id": "trt-labor-procedure-session-2",
+      "contestId": "trt-2-2026",
+      "type": "questions",
+      "studiedAt": "2026-06-02T10:00:00.000Z",
+      "subjectId": "trt-labor-procedure",
+      "studyItemId": "trt-labor-procedure-item-1",
+      "topicId": "trt-procedure-appeals",
+      "pagesOrCount": 25,
+      "correctAnswers": 20,
+      "completed": true
+    },
+    {
+      "id": "trt-labor-procedure-session-3",
+      "contestId": "trt-2-2026",
+      "type": "video",
+      "studiedAt": "2026-06-07T10:00:00.000Z",
+      "subjectId": "trt-labor-procedure",
+      "studyItemId": "trt-labor-procedure-item-2",
+      "topicId": "trt-procedure-execution",
+      "pagesOrCount": 1,
+      "completed": true
+    },
+    {
+      "id": "trt-labor-procedure-session-4",
+      "contestId": "trt-2-2026",
+      "type": "questions",
+      "studiedAt": "2026-06-08T10:00:00.000Z",
+      "subjectId": "trt-labor-procedure",
+      "studyItemId": "trt-labor-procedure-item-2",
+      "topicId": "trt-procedure-execution",
+      "pagesOrCount": 20,
+      "correctAnswers": 16,
+      "completed": true
+    },
+    {
+      "id": "trt-portuguese-session-1",
+      "contestId": "trt-2-2026",
+      "type": "pdf",
+      "studiedAt": "2026-06-03T10:00:00.000Z",
+      "subjectId": "trt-portuguese",
+      "studyItemId": "trt-portuguese-item-1",
+      "topicId": "trt-portuguese-official",
+      "pagesOrCount": 16,
+      "completed": true
+    },
+    {
+      "id": "trt-portuguese-session-2",
+      "contestId": "trt-2-2026",
+      "type": "questions",
+      "studiedAt": "2026-06-03T10:00:00.000Z",
+      "subjectId": "trt-portuguese",
+      "studyItemId": "trt-portuguese-item-1",
+      "topicId": "trt-portuguese-official",
+      "pagesOrCount": 20,
+      "correctAnswers": 17,
+      "completed": true
+    },
+    {
+      "id": "trt-portuguese-session-3",
+      "contestId": "trt-2-2026",
+      "type": "pdf",
+      "studiedAt": "2026-06-09T10:00:00.000Z",
+      "subjectId": "trt-portuguese",
+      "studyItemId": "trt-portuguese-item-2",
+      "topicId": "trt-portuguese-punctuation",
+      "pagesOrCount": 18,
+      "completed": true
+    },
+    {
+      "id": "trt-portuguese-session-4",
+      "contestId": "trt-2-2026",
+      "type": "questions",
+      "studiedAt": "2026-06-09T10:00:00.000Z",
+      "subjectId": "trt-portuguese",
+      "studyItemId": "trt-portuguese-item-2",
+      "topicId": "trt-portuguese-punctuation",
+      "pagesOrCount": 20,
+      "correctAnswers": 16,
+      "completed": true
+    },
+    {
+      "id": "session-1781261087580",
+      "contestId": "tce-sp-2026",
+      "type": "video",
+      "studiedAt": "2026-06-12",
+      "subjectId": "tce-constitutional",
+      "topicId": "tce-constitutional-rights",
+      "completed": true
+    }
+  ]
+}

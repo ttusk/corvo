@@ -25,4 +25,4 @@
 
 ---
 
-*Gerenciado pelo plugin Corvo*
+*Gerenciado pelo plugin Leif*

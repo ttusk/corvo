@@ -1,4 +1,5 @@
 import type { PluginDataStore } from "@/application/ports/PluginDataStore";
+import { StudySessionType } from "@/domain/entities/StudySession";
 import { ActiveContestGuard } from "@/application/guards/ActiveContestGuard";
 
 export interface SubjectSummary {
@@ -37,10 +38,10 @@ export class GetActiveContestSummaryUseCase {
       );
 
       const pdfProgressCount = subjectSessions
-        .filter((session) => session.type === "pdf")
+        .filter((session) => session.type === StudySessionType.PDF)
         .reduce((total, session) => total + (session.pagesOrCount ?? 0), 0);
 
-      const questionSessions = subjectSessions.filter((session) => session.type === "questions");
+      const questionSessions = subjectSessions.filter((session) => session.type === StudySessionType.QUESTIONS);
       const questionProgressCount = questionSessions.reduce(
         (total, session) => total + (session.pagesOrCount ?? 0),
         0
@@ -50,14 +51,15 @@ export class GetActiveContestSummaryUseCase {
         0
       );
 
+      const rawAccuracy = questionProgressCount > 0 ? totalCorrectAnswers / questionProgressCount : 0;
+
       return {
         subjectId: subject.id,
         subjectName: subject.name,
         totalSessions: subjectSessions.length,
         pdfProgressCount,
         questionProgressCount,
-        questionAccuracy:
-          questionProgressCount > 0 ? totalCorrectAnswers / questionProgressCount : null
+        questionAccuracy: questionProgressCount > 0 ? Math.min(1, rawAccuracy) : null
       };
     });
 

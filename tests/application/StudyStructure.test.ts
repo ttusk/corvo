@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import type { PersistentStorageAdapter } from "@/application/ports/PersistentStorageAdapter";
 import { AdvanceCycleUseCase } from "@/application/use-cases/AdvanceCycleUseCase";
 import { AddStudyItemResourceReferenceUseCase } from "@/application/use-cases/AddStudyItemResourceReferenceUseCase";
-import { AddTopicResourceReferenceUseCase } from "@/application/use-cases/AddTopicResourceReferenceUseCase";
 import { CreateContestUseCase } from "@/application/use-cases/CreateContestUseCase";
 import { CreateStudyItemUseCase } from "@/application/use-cases/CreateStudyItemUseCase";
 import { CreateSubjectUseCase } from "@/application/use-cases/CreateSubjectUseCase";
@@ -12,27 +11,27 @@ import { DeleteStudySessionUseCase } from "@/application/use-cases/DeleteStudySe
 import { GetActiveCycleSnapshotUseCase } from "@/application/use-cases/GetActiveCycleSnapshotUseCase";
 import { LinkQuestionNotebookUseCase } from "@/application/use-cases/LinkQuestionNotebookUseCase";
 import { RegisterStudySessionUseCase } from "@/application/use-cases/RegisterStudySessionUseCase";
-import { createDefaultCorvoPluginData, type CorvoPluginData } from "@/domain/types/CorvoPluginData";
+import { createDefaultLeifPluginData, type LeifPluginData } from "@/domain/types/LeifPluginData";
 import { PluginDataStore } from "@/infrastructure/persistence/PluginDataStore";
 
-class InMemoryStorageAdapter implements PersistentStorageAdapter<CorvoPluginData> {
-  private data: CorvoPluginData | null;
+class InMemoryStorageAdapter implements PersistentStorageAdapter<LeifPluginData> {
+  private data: LeifPluginData | null;
 
-  constructor(initialData: CorvoPluginData | null = null) {
+  constructor(initialData: LeifPluginData | null = null) {
     this.data = initialData;
   }
 
-  async load(): Promise<CorvoPluginData | null> {
+  async load(): Promise<LeifPluginData | null> {
     return this.data;
   }
 
-  async save(data: CorvoPluginData): Promise<void> {
+  async save(data: LeifPluginData): Promise<void> {
     this.data = data;
   }
 }
 
 function createStore(): PluginDataStore {
-  return new PluginDataStore(new InMemoryStorageAdapter(createDefaultCorvoPluginData()));
+  return new PluginDataStore(new InMemoryStorageAdapter(createDefaultLeifPluginData()));
 }
 
 describe("Study structure", () => {
@@ -47,8 +46,8 @@ describe("Study structure", () => {
 
     await createContest.execute({ id: "contest-1", name: "TRT" });
     await createSubject.execute({ id: "subject-1", contestId: "contest-1", name: "Portuguese", plannedStudyMinutes: 60 });
-    await createStudyItem.execute({ id: "item-1", subjectId: "subject-1", title: "Sintaxe" });
-    await createStudyItem.execute({ id: "item-2", subjectId: "subject-1", title: "Pontuação" });
+    const item1 = await createStudyItem.execute({ subjectId: "subject-1", title: "Sintaxe" });
+    const item2 = await createStudyItem.execute({ subjectId: "subject-1", title: "Pontuação" });
     await createTopic.execute({ id: "topic-1", subjectId: "subject-1", name: "Orações subordinadas" });
 
     await advanceCycle.execute();
@@ -56,43 +55,53 @@ describe("Study structure", () => {
     await expect(getSnapshot.execute()).resolves.toMatchObject({
       currentSubject: { id: "subject-1" },
       nextSubject: { id: "subject-1" },
-      currentItemId: "item-1",
-      nextItemId: "item-2"
+      currentItemId: item1.id,
+      nextItemId: item2.id
     });
   });
 
-  it("adds resource references to topics and items, links a question notebook, and registers study sessions", async () => {
+  it("recommends the first pending item before the cycle has been started", async () => {
+    const store = createStore();
+    const createContest = new CreateContestUseCase(store);
+    const createSubject = new CreateSubjectUseCase(store);
+    const createStudyItem = new CreateStudyItemUseCase(store);
+    const getSnapshot = new GetActiveCycleSnapshotUseCase(store);
+
+    await createContest.execute({ id: "contest-1", name: "TRT" });
+    await createSubject.execute({ id: "subject-1", contestId: "contest-1", name: "Portuguese", plannedStudyMinutes: 60 });
+    const item1 = await createStudyItem.execute({ subjectId: "subject-1", title: "Sintaxe" });
+    await createStudyItem.execute({ subjectId: "subject-1", title: "Pontuação" });
+
+    await expect(getSnapshot.execute()).resolves.toMatchObject({
+      currentSubject: null,
+      nextSubject: { id: "subject-1" },
+      currentItemId: null,
+      nextItemId: item1.id
+    });
+  });
+
+  it("adds material resources to items, links a question notebook to topics, and registers study sessions", async () => {
     const store = createStore();
     const createContest = new CreateContestUseCase(store);
     const createSubject = new CreateSubjectUseCase(store);
     const createStudyItem = new CreateStudyItemUseCase(store);
     const addStudyItemResourceReference = new AddStudyItemResourceReferenceUseCase(store);
     const createTopic = new CreateTopicUseCase(store);
-    const addTopicResourceReference = new AddTopicResourceReferenceUseCase(store);
     const linkQuestionNotebook = new LinkQuestionNotebookUseCase(store);
     const registerStudySession = new RegisterStudySessionUseCase(store);
 
     await createContest.execute({ id: "contest-1", name: "TRT" });
     await createSubject.execute({ id: "subject-1", contestId: "contest-1", name: "Portuguese", plannedStudyMinutes: 60 });
-    await createStudyItem.execute({ id: "item-1", subjectId: "subject-1", title: "Sintaxe" });
+    const item1 = await createStudyItem.execute({ subjectId: "subject-1", title: "Sintaxe" });
     await createTopic.execute({ id: "topic-1", subjectId: "subject-1", name: "Orações subordinadas" });
 
     await addStudyItemResourceReference.execute({
-      studyItemId: "item-1",
+      studyItemId: item1.id,
       resourceReference: {
         id: "resource-item-1",
         title: "Vídeo Aula 01",
         type: "video",
         url: "https://example.com/video-aula-01"
-      }
-    });
-    await addTopicResourceReference.execute({
-      topicId: "topic-1",
-      resourceReference: {
-        id: "resource-1",
-        title: "PDF Aula 01",
-        type: "pdf",
-        url: "https://example.com/pdf-aula-01"
       }
     });
     await linkQuestionNotebook.execute({
@@ -122,13 +131,7 @@ describe("Study structure", () => {
     expect(data.topics).toMatchObject([
       {
         id: "topic-1",
-        resourceReferences: [
-          {
-            id: "resource-1",
-            title: "PDF Aula 01",
-            type: "pdf"
-          }
-        ],
+        resourceReferences: [],
         questionNotebook: {
           id: "notebook-1",
           name: "Tec Concursos - Orações",
@@ -139,12 +142,12 @@ describe("Study structure", () => {
     ]);
     expect(data.studyItems).toMatchObject([
       {
-        id: "item-1",
         resourceReferences: [
           {
             id: "resource-item-1",
             title: "Vídeo Aula 01",
-            type: "video"
+            type: "video",
+            url: "https://example.com/video-aula-01"
           }
         ]
       }
