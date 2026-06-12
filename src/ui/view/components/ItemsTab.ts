@@ -3,7 +3,9 @@ import type { PluginDataStore } from "@/application/ports/PluginDataStore";
 import { AddStudyItemResourceReferenceUseCase } from "@/application/use-cases/AddStudyItemResourceReferenceUseCase";
 import { CreateStudyItemUseCase } from "@/application/use-cases/CreateStudyItemUseCase";
 import { DeleteStudyItemUseCase } from "@/application/use-cases/DeleteStudyItemUseCase";
+import { ExportToCsvUseCase } from "@/application/use-cases/ExportToCsvUseCase";
 import { GetActiveContestProgressDashboardUseCase } from "@/application/use-cases/GetActiveContestProgressDashboardUseCase";
+import { UpdateStudyItemUseCase } from "@/application/use-cases/UpdateStudyItemUseCase";
 import type { StudyItem } from "@/domain/entities/StudyItem";
 import type { CorvoPluginData } from "@/domain/types/CorvoPluginData";
 import { DomHelpers } from "@/ui/view/shared/DomHelpers";
@@ -17,6 +19,8 @@ export class ItemsTab {
   private readonly addStudyItemResourceReferenceUseCase: AddStudyItemResourceReferenceUseCase;
   private readonly getActiveContestProgressDashboardUseCase: GetActiveContestProgressDashboardUseCase;
   private readonly deleteStudyItemUseCase: DeleteStudyItemUseCase;
+  private readonly updateStudyItemUseCase: UpdateStudyItemUseCase;
+  private readonly exportToCsvUseCase: ExportToCsvUseCase;
 
   private selectedSubjectId: string | null = null;
   private editingItemId: string | null = null;
@@ -30,10 +34,25 @@ export class ItemsTab {
     this.addStudyItemResourceReferenceUseCase = new AddStudyItemResourceReferenceUseCase(dataStore);
     this.getActiveContestProgressDashboardUseCase = new GetActiveContestProgressDashboardUseCase(dataStore);
     this.deleteStudyItemUseCase = new DeleteStudyItemUseCase(dataStore);
+    this.updateStudyItemUseCase = new UpdateStudyItemUseCase(dataStore);
+    this.exportToCsvUseCase = new ExportToCsvUseCase(dataStore);
   }
 
   async render(container: HTMLElement, data: CorvoPluginData): Promise<void> {
-    container.appendChild(DomHelpers.createSectionTitle("Itens e PDFs"));
+    const header = DomHelpers.createElement("div", "corvo-section-header");
+    header.appendChild(DomHelpers.createSectionTitle("Itens e PDFs"));
+    header.appendChild(
+      DomHelpers.createIconButton("download", "Exportar CSV", {
+        onClick: async () => {
+          try {
+            await this.exportToCsvUseCase.execute({ entityType: "items", subjectId: this.selectedSubjectId ?? undefined });
+          } catch (error) {
+            this.notifyError(error, "Não foi possível exportar.");
+          }
+        }
+      })
+    );
+    container.appendChild(header);
 
     const subject = this.getSelectedSubject(data);
     if (!subject) {
@@ -107,11 +126,11 @@ export class ItemsTab {
     const tr = DomHelpers.createElement("tr");
     const refs = item.resourceReferences ?? [];
 
-    tr.appendChild(this.createCell(String(item.order)));
-    tr.appendChild(this.createCell(item.title));
-    tr.appendChild(this.createCell(String(item.weight ?? 0)));
-    tr.appendChild(this.createCell(String(item.questionCount ?? 0)));
-    tr.appendChild(this.createCell(String(itemProgress?.progressCount ?? 0)));
+    tr.appendChild(DomHelpers.createCell(String(item.order)));
+    tr.appendChild(DomHelpers.createCell(item.title));
+    tr.appendChild(DomHelpers.createCell(String(item.weight ?? 0)));
+    tr.appendChild(DomHelpers.createCell(String(item.questionCount ?? 0)));
+    tr.appendChild(DomHelpers.createCell(String(itemProgress?.progressCount ?? 0)));
 
     const actions = DomHelpers.createElement("div", "corvo-inline-actions corvo-inline-actions-compact");
     const hasRefs = refs.length > 0;
@@ -171,9 +190,17 @@ export class ItemsTab {
 
     const saveButton = DomHelpers.createIconButton("save", "Salvar", {
       onClick: async () => {
-        // Note: Would need an UpdateStudyItemUseCase
-        this.editingItemId = null;
-        await this.onUpdate();
+        try {
+          await this.updateStudyItemUseCase.execute({
+            itemId: item.id,
+            weight: Number(weightInput.value),
+            questionCount: Number(questionInput.value)
+          });
+          this.editingItemId = null;
+          await this.onUpdate();
+        } catch (error) {
+          this.notifyError(error, "Não foi possível salvar.");
+        }
       }
     });
 
@@ -188,11 +215,11 @@ export class ItemsTab {
     actions.appendChild(saveButton);
     actions.appendChild(cancelButton);
 
-    tr.appendChild(this.createCell(String(item.order)));
-    tr.appendChild(this.createCell(item.title));
-    tr.appendChild(this.createCell(null, weightInput));
-    tr.appendChild(this.createCell(null, questionInput));
-    tr.appendChild(this.createCell(String(itemProgress?.progressCount ?? 0)));
+    tr.appendChild(DomHelpers.createCell(String(item.order)));
+    tr.appendChild(DomHelpers.createCell(item.title));
+    tr.appendChild(DomHelpers.createCell(null, weightInput));
+    tr.appendChild(DomHelpers.createCell(null, questionInput));
+    tr.appendChild(DomHelpers.createCell(String(itemProgress?.progressCount ?? 0)));
 
     const actionsCell = DomHelpers.createElement("td");
     actionsCell.appendChild(actions);
@@ -272,13 +299,6 @@ export class ItemsTab {
     tr.appendChild(td);
 
     return tr;
-  }
-
-  private createCell(text: string | null, element?: HTMLElement): HTMLElement {
-    const td = DomHelpers.createElement("td");
-    if (text !== null) td.textContent = text;
-    if (element) td.appendChild(element);
-    return td;
   }
 
   private renderCreateItemForm(subjectId: string): HTMLElement {

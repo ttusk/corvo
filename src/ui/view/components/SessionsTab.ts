@@ -1,9 +1,11 @@
 import { Notice } from "obsidian";
 import type { PluginDataStore } from "@/application/ports/PluginDataStore";
 import { DeleteStudySessionUseCase } from "@/application/use-cases/DeleteStudySessionUseCase";
+import { ExportToCsvUseCase } from "@/application/use-cases/ExportToCsvUseCase";
 import { GetActiveContestSummaryUseCase } from "@/application/use-cases/GetActiveContestSummaryUseCase";
 import { ListSubjectsForActiveContestUseCase } from "@/application/use-cases/ListSubjectsForActiveContestUseCase";
 import { RegisterStudySessionUseCase } from "@/application/use-cases/RegisterStudySessionUseCase";
+import { UpdateStudySessionUseCase } from "@/application/use-cases/UpdateStudySessionUseCase";
 import type { StudySession } from "@/domain/entities/StudySession";
 import type { CorvoPluginData } from "@/domain/types/CorvoPluginData";
 import { DomHelpers } from "@/ui/view/shared/DomHelpers";
@@ -16,6 +18,8 @@ export class SessionsTab {
   private readonly deleteStudySessionUseCase: DeleteStudySessionUseCase;
   private readonly getActiveContestSummaryUseCase: GetActiveContestSummaryUseCase;
   private readonly listSubjectsForActiveContestUseCase: ListSubjectsForActiveContestUseCase;
+  private readonly updateStudySessionUseCase: UpdateStudySessionUseCase;
+  private readonly exportToCsvUseCase: ExportToCsvUseCase;
 
   private editingSessionId: string | null = null;
 
@@ -27,10 +31,25 @@ export class SessionsTab {
     this.deleteStudySessionUseCase = new DeleteStudySessionUseCase(dataStore);
     this.getActiveContestSummaryUseCase = new GetActiveContestSummaryUseCase(dataStore);
     this.listSubjectsForActiveContestUseCase = new ListSubjectsForActiveContestUseCase(dataStore);
+    this.updateStudySessionUseCase = new UpdateStudySessionUseCase(dataStore);
+    this.exportToCsvUseCase = new ExportToCsvUseCase(dataStore);
   }
 
   async render(container: HTMLElement, data: CorvoPluginData): Promise<void> {
-    container.appendChild(DomHelpers.createSectionTitle("Sessões"));
+    const header = DomHelpers.createElement("div", "corvo-section-header");
+    header.appendChild(DomHelpers.createSectionTitle("Sessões"));
+    header.appendChild(
+      DomHelpers.createIconButton("download", "Exportar CSV", {
+        onClick: async () => {
+          try {
+            await this.exportToCsvUseCase.execute({ entityType: "sessions" });
+          } catch (error) {
+            this.notifyError(error, "Não foi possível exportar.");
+          }
+        }
+      })
+    );
+    container.appendChild(header);
     container.appendChild(
       DomHelpers.createParagraph("Registre sessões manualmente e acompanhe o histórico recente.")
     );
@@ -93,11 +112,11 @@ export class SessionsTab {
     const topicName =
       data.topics.find((topic) => topic.id === session.topicId)?.name ?? "—";
 
-    tr.appendChild(this.createCell(new Date(session.studiedAt).toLocaleDateString("pt-BR")));
-    tr.appendChild(this.createCell(subjectName));
-    tr.appendChild(this.createCell(topicName));
-    tr.appendChild(this.createCell(this.formatSessionType(session.type)));
-    tr.appendChild(this.createCell(String(session.pagesOrCount ?? 0)));
+    tr.appendChild(DomHelpers.createCell(new Date(session.studiedAt).toLocaleDateString("pt-BR")));
+    tr.appendChild(DomHelpers.createCell(subjectName));
+    tr.appendChild(DomHelpers.createCell(topicName));
+    tr.appendChild(DomHelpers.createCell(this.formatSessionType(session.type)));
+    tr.appendChild(DomHelpers.createCell(String(session.pagesOrCount ?? 0)));
 
     const actions = DomHelpers.createElement("div", "corvo-inline-actions corvo-inline-actions-compact");
     actions.appendChild(
@@ -139,9 +158,16 @@ export class SessionsTab {
 
     const saveButton = DomHelpers.createIconButton("save", "Salvar", {
       onClick: async () => {
-        // Note: Would need UpdateStudySessionUseCase
-        this.editingSessionId = null;
-        await this.onUpdate();
+        try {
+          await this.updateStudySessionUseCase.execute({
+            sessionId: session.id,
+            pagesOrCount: Number(countInput.value)
+          });
+          this.editingSessionId = null;
+          await this.onUpdate();
+        } catch (error) {
+          this.notifyError(error, "Não foi possível salvar.");
+        }
       }
     });
 
@@ -161,24 +187,17 @@ export class SessionsTab {
     const topicName =
       data.topics.find((topic) => topic.id === session.topicId)?.name ?? "—";
 
-    tr.appendChild(this.createCell(new Date(session.studiedAt).toLocaleDateString("pt-BR")));
-    tr.appendChild(this.createCell(subjectName));
-    tr.appendChild(this.createCell(topicName));
-    tr.appendChild(this.createCell(this.formatSessionType(session.type)));
-    tr.appendChild(this.createCell(null, countInput));
+    tr.appendChild(DomHelpers.createCell(new Date(session.studiedAt).toLocaleDateString("pt-BR")));
+    tr.appendChild(DomHelpers.createCell(subjectName));
+    tr.appendChild(DomHelpers.createCell(topicName));
+    tr.appendChild(DomHelpers.createCell(this.formatSessionType(session.type)));
+    tr.appendChild(DomHelpers.createCell(null, countInput));
 
     const actionsCell = DomHelpers.createElement("td");
     actionsCell.appendChild(actions);
     tr.appendChild(actionsCell);
 
     return tr;
-  }
-
-  private createCell(text: string | null, element?: HTMLElement): HTMLElement {
-    const td = DomHelpers.createElement("td");
-    if (text !== null) td.textContent = text;
-    if (element) td.appendChild(element);
-    return td;
   }
 
   private renderSessionForm(

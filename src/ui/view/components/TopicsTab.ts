@@ -3,7 +3,9 @@ import type { PluginDataStore } from "@/application/ports/PluginDataStore";
 import { AddTopicResourceReferenceUseCase } from "@/application/use-cases/AddTopicResourceReferenceUseCase";
 import { CreateTopicUseCase } from "@/application/use-cases/CreateTopicUseCase";
 import { DeleteTopicUseCase } from "@/application/use-cases/DeleteTopicUseCase";
+import { ExportToCsvUseCase } from "@/application/use-cases/ExportToCsvUseCase";
 import { LinkQuestionNotebookUseCase } from "@/application/use-cases/LinkQuestionNotebookUseCase";
+import { UpdateTopicUseCase } from "@/application/use-cases/UpdateTopicUseCase";
 import type { Topic } from "@/domain/entities/Topic";
 import type { CorvoPluginData } from "@/domain/types/CorvoPluginData";
 import { DomHelpers } from "@/ui/view/shared/DomHelpers";
@@ -17,6 +19,8 @@ export class TopicsTab {
   private readonly addTopicResourceReferenceUseCase: AddTopicResourceReferenceUseCase;
   private readonly linkQuestionNotebookUseCase: LinkQuestionNotebookUseCase;
   private readonly deleteTopicUseCase: DeleteTopicUseCase;
+  private readonly updateTopicUseCase: UpdateTopicUseCase;
+  private readonly exportToCsvUseCase: ExportToCsvUseCase;
 
   private selectedSubjectId: string | null = null;
   private editingTopicId: string | null = null;
@@ -30,10 +34,25 @@ export class TopicsTab {
     this.addTopicResourceReferenceUseCase = new AddTopicResourceReferenceUseCase(dataStore);
     this.linkQuestionNotebookUseCase = new LinkQuestionNotebookUseCase(dataStore);
     this.deleteTopicUseCase = new DeleteTopicUseCase(dataStore);
+    this.updateTopicUseCase = new UpdateTopicUseCase(dataStore);
+    this.exportToCsvUseCase = new ExportToCsvUseCase(dataStore);
   }
 
   async render(container: HTMLElement, data: CorvoPluginData): Promise<void> {
-    container.appendChild(DomHelpers.createSectionTitle("Assuntos e Questões"));
+    const header = DomHelpers.createElement("div", "corvo-section-header");
+    header.appendChild(DomHelpers.createSectionTitle("Assuntos e Questões"));
+    header.appendChild(
+      DomHelpers.createIconButton("download", "Exportar CSV", {
+        onClick: async () => {
+          try {
+            await this.exportToCsvUseCase.execute({ entityType: "topics", subjectId: this.selectedSubjectId ?? undefined });
+          } catch (error) {
+            this.notifyError(error, "Não foi possível exportar.");
+          }
+        }
+      })
+    );
+    container.appendChild(header);
 
     const subject = this.getSelectedSubject(data);
     if (!subject) {
@@ -95,11 +114,11 @@ export class TopicsTab {
     const tr = DomHelpers.createElement("tr");
     const hasDetails = topic.resourceReferences.length > 0 || topic.questionNotebook;
 
-    tr.appendChild(this.createCell(String(topic.order)));
-    tr.appendChild(this.createCell(topic.name));
-    tr.appendChild(this.createCell(topic.questionNotebook?.name ?? "—"));
-    tr.appendChild(this.createCell(String(topic.questionNotebook?.solvedQuestions ?? 0)));
-    tr.appendChild(this.createCell(String(topic.questionNotebook?.correctAnswers ?? 0)));
+    tr.appendChild(DomHelpers.createCell(String(topic.order)));
+    tr.appendChild(DomHelpers.createCell(topic.name));
+    tr.appendChild(DomHelpers.createCell(topic.questionNotebook?.name ?? "—"));
+    tr.appendChild(DomHelpers.createCell(String(topic.questionNotebook?.solvedQuestions ?? 0)));
+    tr.appendChild(DomHelpers.createCell(String(topic.questionNotebook?.correctAnswers ?? 0)));
 
     const actions = DomHelpers.createElement("div", "corvo-inline-actions corvo-inline-actions-compact");
     actions.appendChild(
@@ -163,9 +182,25 @@ export class TopicsTab {
 
     const saveButton = DomHelpers.createIconButton("save", "Salvar", {
       onClick: async () => {
-        // Note: Would need UpdateTopicUseCase for full edit
-        this.editingTopicId = null;
-        await this.onUpdate();
+        try {
+          await this.updateTopicUseCase.execute({
+            topicId: topic.id,
+            name: nameInput.value,
+            questionNotebook: topic.questionNotebook
+              ? {
+                  id: topic.questionNotebook.id,
+                  name: topic.questionNotebook.name,
+                  url: topic.questionNotebook.url,
+                  solvedQuestions: Number(solvedInput.value),
+                  correctAnswers: Number(correctInput.value)
+                }
+              : undefined
+          });
+          this.editingTopicId = null;
+          await this.onUpdate();
+        } catch (error) {
+          this.notifyError(error, "Não foi possível salvar.");
+        }
       }
     });
 
@@ -180,11 +215,11 @@ export class TopicsTab {
     actions.appendChild(saveButton);
     actions.appendChild(cancelButton);
 
-    tr.appendChild(this.createCell(String(topic.order)));
-    tr.appendChild(this.createCell(null, nameInput));
-    tr.appendChild(this.createCell(null, DomHelpers.createParagraph(topic.questionNotebook?.name ?? "—")));
-    tr.appendChild(this.createCell(null, solvedInput));
-    tr.appendChild(this.createCell(null, correctInput));
+    tr.appendChild(DomHelpers.createCell(String(topic.order)));
+    tr.appendChild(DomHelpers.createCell(null, nameInput));
+    tr.appendChild(DomHelpers.createCell(null, DomHelpers.createParagraph(topic.questionNotebook?.name ?? "—")));
+    tr.appendChild(DomHelpers.createCell(null, solvedInput));
+    tr.appendChild(DomHelpers.createCell(null, correctInput));
 
     const actionsCell = DomHelpers.createElement("td");
     actionsCell.appendChild(actions);
@@ -298,13 +333,6 @@ export class TopicsTab {
     tr.appendChild(td);
 
     return tr;
-  }
-
-  private createCell(text: string | null, element?: HTMLElement): HTMLElement {
-    const td = DomHelpers.createElement("td");
-    if (text !== null) td.textContent = text;
-    if (element) td.appendChild(element);
-    return td;
   }
 
   private renderCreateTopicForm(subjectId: string): HTMLElement {

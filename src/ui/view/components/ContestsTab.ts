@@ -1,6 +1,7 @@
 import type { PluginDataStore } from "@/application/ports/PluginDataStore";
 import { CreateContestUseCase } from "@/application/use-cases/CreateContestUseCase";
 import { DeleteContestUseCase } from "@/application/use-cases/DeleteContestUseCase";
+import { ExportToCsvUseCase } from "@/application/use-cases/ExportToCsvUseCase";
 import { SetActiveContestUseCase } from "@/application/use-cases/SetActiveContestUseCase";
 import { UpdateContestUseCase } from "@/application/use-cases/UpdateContestUseCase";
 import type { Contest } from "@/domain/entities/Contest";
@@ -16,6 +17,7 @@ export class ContestsTab {
   private readonly setActiveContestUseCase: SetActiveContestUseCase;
   private readonly updateContestUseCase: UpdateContestUseCase;
   private readonly deleteContestUseCase: DeleteContestUseCase;
+  private readonly exportToCsvUseCase: ExportToCsvUseCase;
 
   private editingContestId: string | null = null;
 
@@ -27,10 +29,24 @@ export class ContestsTab {
     this.setActiveContestUseCase = new SetActiveContestUseCase(dataStore);
     this.updateContestUseCase = new UpdateContestUseCase(dataStore);
     this.deleteContestUseCase = new DeleteContestUseCase(dataStore);
+    this.exportToCsvUseCase = new ExportToCsvUseCase(dataStore);
   }
 
   async render(container: HTMLElement, data: CorvoPluginData): Promise<void> {
-    container.appendChild(DomHelpers.createSectionTitle("Concursos"));
+    const header = DomHelpers.createElement("div", "corvo-section-header");
+    header.appendChild(DomHelpers.createSectionTitle("Concursos"));
+    header.appendChild(
+      DomHelpers.createIconButton("download", "Exportar CSV", {
+        onClick: async () => {
+          try {
+            await this.exportToCsvUseCase.execute({ entityType: "contests" });
+          } catch (error) {
+            this.notifyError(error, "Não foi possível exportar.");
+          }
+        }
+      })
+    );
+    container.appendChild(header);
     container.appendChild(
       DomHelpers.createParagraph("Cadastre concursos e defina qual deles está ativo.")
     );
@@ -68,10 +84,10 @@ export class ContestsTab {
     const tr = DomHelpers.createElement("tr");
     const isActive = data.activeContestId === contest.id;
 
-    tr.appendChild(this.createCell(contest.name));
-    tr.appendChild(this.createCell(contest.id));
-    tr.appendChild(this.createCell(contest.wall.notes ?? "—"));
-    tr.appendChild(this.createCell(isActive ? "Ativo" : "Inativo"));
+    tr.appendChild(DomHelpers.createCell(contest.name));
+    tr.appendChild(DomHelpers.createCell(contest.id));
+    tr.appendChild(DomHelpers.createCell(contest.wall.notes ?? "—"));
+    tr.appendChild(DomHelpers.createCell(isActive ? "Ativo" : "Inativo"));
 
     const actions = DomHelpers.createElement("div", "corvo-inline-actions corvo-inline-actions-compact");
 
@@ -156,23 +172,16 @@ export class ContestsTab {
     actions.appendChild(saveButton);
     actions.appendChild(cancelButton);
 
-    tr.appendChild(this.createCell(null, nameInput));
-    tr.appendChild(this.createCell(contest.id));
-    tr.appendChild(this.createCell(null, notesInput));
-    tr.appendChild(this.createCell(data.activeContestId === contest.id ? "Ativo" : "Inativo"));
+    tr.appendChild(DomHelpers.createCell(null, nameInput));
+    tr.appendChild(DomHelpers.createCell(contest.id));
+    tr.appendChild(DomHelpers.createCell(null, notesInput));
+    tr.appendChild(DomHelpers.createCell(data.activeContestId === contest.id ? "Ativo" : "Inativo"));
 
     const actionsCell = DomHelpers.createElement("td");
     actionsCell.appendChild(actions);
     tr.appendChild(actionsCell);
 
     return tr;
-  }
-
-  private createCell(text: string | null, element?: HTMLElement): HTMLElement {
-    const td = DomHelpers.createElement("td");
-    if (text !== null) td.textContent = text;
-    if (element) td.appendChild(element);
-    return td;
   }
 
   private renderCreateContestForm(): HTMLElement {

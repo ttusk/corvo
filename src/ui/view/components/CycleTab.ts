@@ -1,5 +1,6 @@
 import type { PluginDataStore } from "@/application/ports/PluginDataStore";
 import { CreateSubjectUseCase } from "@/application/use-cases/CreateSubjectUseCase";
+import { ExportToCsvUseCase } from "@/application/use-cases/ExportToCsvUseCase";
 import { ListSubjectsForActiveContestUseCase } from "@/application/use-cases/ListSubjectsForActiveContestUseCase";
 import { ReorderSubjectsUseCase } from "@/application/use-cases/ReorderSubjectsUseCase";
 import { SetSubjectActiveStateUseCase } from "@/application/use-cases/SetSubjectActiveStateUseCase";
@@ -20,6 +21,7 @@ export class CycleTab {
   private readonly reorderSubjectsUseCase: ReorderSubjectsUseCase;
   private readonly setSubjectActiveStateUseCase: SetSubjectActiveStateUseCase;
   private readonly updateSubjectConfigurationUseCase: UpdateSubjectConfigurationUseCase;
+  private readonly exportToCsvUseCase: ExportToCsvUseCase;
   private editingSubjectId: string | null = null;
 
   constructor(
@@ -31,13 +33,27 @@ export class CycleTab {
     this.reorderSubjectsUseCase = new ReorderSubjectsUseCase(dataStore);
     this.setSubjectActiveStateUseCase = new SetSubjectActiveStateUseCase(dataStore);
     this.updateSubjectConfigurationUseCase = new UpdateSubjectConfigurationUseCase(dataStore);
+    this.exportToCsvUseCase = new ExportToCsvUseCase(dataStore);
   }
 
   /**
    * Renders the cycle tab content.
    */
   async render(container: HTMLElement, data: CorvoPluginData): Promise<void> {
-    container.appendChild(DomHelpers.createSectionTitle("Ciclo e Matérias"));
+    const header = DomHelpers.createElement("div", "corvo-section-header");
+    header.appendChild(DomHelpers.createSectionTitle("Ciclo e Matérias"));
+    header.appendChild(
+      DomHelpers.createIconButton("download", "Exportar CSV", {
+        onClick: async () => {
+          try {
+            await this.exportToCsvUseCase.execute({ entityType: "subjects" });
+          } catch (error) {
+            this.notifyError(error, "Não foi possível exportar.");
+          }
+        }
+      })
+    );
+    container.appendChild(header);
     container.appendChild(
       DomHelpers.createParagraph("Gerencie a ordem, o status, o tempo e a etapa das matérias.")
     );
@@ -97,12 +113,12 @@ export class CycleTab {
     activeContestId: string | null
   ): HTMLElement {
     const tr = DomHelpers.createElement("tr");
-    tr.appendChild(this.createCell(String(subject.order)));
-    tr.appendChild(this.createCell(subject.name));
-    tr.appendChild(this.createCell(`${subject.plannedStudyMinutes} min`));
-    tr.appendChild(this.createCell(subject.currentStage ?? "—"));
-    tr.appendChild(this.createCell(subject.isActive ? "Ativa" : "Inativa"));
-    tr.appendChild(this.createCell(null, this.renderSubjectActionsCell(subject, subjects, index, activeContestId)));
+    tr.appendChild(DomHelpers.createCell(String(subject.order)));
+    tr.appendChild(DomHelpers.createCell(subject.name));
+    tr.appendChild(DomHelpers.createCell(`${subject.plannedStudyMinutes} min`));
+    tr.appendChild(DomHelpers.createCell(subject.currentStage ?? "—"));
+    tr.appendChild(DomHelpers.createCell(subject.isActive ? "Ativa" : "Inativa"));
+    tr.appendChild(DomHelpers.createCell(null, this.renderSubjectActionsCell(subject, subjects, index, activeContestId)));
     return tr;
   }
 
@@ -172,24 +188,13 @@ export class CycleTab {
       );
     }
 
-    tr.appendChild(this.createCell(String(subject.order)));
-    tr.appendChild(this.createCell(subject.name));
-    tr.appendChild(this.createCell(null, minutesInput));
-    tr.appendChild(this.createCell(null, stageInput));
-    tr.appendChild(this.createCell(subject.isActive ? "Ativa" : "Inativa"));
-    tr.appendChild(this.createCell(null, controls));
+    tr.appendChild(DomHelpers.createCell(String(subject.order)));
+    tr.appendChild(DomHelpers.createCell(subject.name));
+    tr.appendChild(DomHelpers.createCell(null, minutesInput));
+    tr.appendChild(DomHelpers.createCell(null, stageInput));
+    tr.appendChild(DomHelpers.createCell(subject.isActive ? "Ativa" : "Inativa"));
+    tr.appendChild(DomHelpers.createCell(null, controls));
     return tr;
-  }
-
-  private createCell(text: string | null, element?: HTMLElement): HTMLElement {
-    const td = DomHelpers.createElement("td");
-    if (text !== null) {
-      td.textContent = text;
-    }
-    if (element) {
-      td.appendChild(element);
-    }
-    return td;
   }
 
   private renderCreateSubjectForm(data: CorvoPluginData): HTMLElement {

@@ -1,4 +1,4 @@
-import { setIcon, setTooltip } from "obsidian";
+import { Notice, setIcon, setTooltip } from "obsidian";
 import { ICON_NAMES } from "@/ui/constants";
 
 /**
@@ -432,5 +432,23 @@ export class DomHelpers {
    */
   static createFormRow(): HTMLElement {
     return this.createElement("div", "corvo-form-row");
+  }
+
+  /**
+   * Creates a table cell with optional text or child element.
+   */
+  static createCell(text: string | null, element?: HTMLElement): HTMLElement {
+    const td = this.createElement("td");
+    if (text !== null) td.textContent = text;
+    if (element) td.appendChild(element);
+    return td;
+  }
+
+  /**
+   * Displays an error notification using Obsidian's Notice.
+   * Checks for specific error types to provide better messages.
+   */
+  static notifyError(error: unknown, fallbackMessage: string): void {
+    new Notice(error instanceof Error ? error.message : fallbackMessage);
   }
 }

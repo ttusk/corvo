@@ -26,7 +26,8 @@ export const ICON_NAMES = {
   toggleOn: "toggle-right",
   toggleOff: "toggle-left",
   expand: "chevron-down",
-  collapse: "chevron-up"
+  collapse: "chevron-up",
+  download: "download"
 } as const;
 
 export type CorvoTabId = "dashboard" | "contests" | "cycle" | "items" | "topics" | "sessions" | "wall";

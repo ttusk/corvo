@@ -1369,6 +1369,158 @@ var DeleteContestUseCase = class {
   }
 };
 
+// src/domain/services/CsvExportService.ts
+var CsvExportService = class {
+  /**
+   * Converts an array of records to a CSV string.
+   * @param records - Array of objects to convert
+   * @returns CSV string with BOM prefix
+   */
+  static export(records) {
+    if (records.length === 0) {
+      return this.BOM;
+    }
+    const headers = Object.keys(records[0]);
+    const lines = [this.formatRow(headers)];
+    records.forEach((record) => {
+      const values = headers.map((header) => this.formatValue(record[header]));
+      lines.push(this.formatRow(values));
+    });
+    return this.BOM + lines.join(this.LINE_BREAK);
+  }
+  /**
+   * Triggers a browser download of a CSV file.
+   * @param csvContent - The CSV content string
+   * @param filename - The desired filename (without extension)
+   */
+  static download(csvContent, filename) {
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${filename}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+  static formatRow(values) {
+    return values.join(this.DELIMITER);
+  }
+  static formatValue(value) {
+    if (value === void 0 || value === null) {
+      return "";
+    }
+    const stringValue = String(value);
+    if (stringValue.includes(this.DELIMITER) || stringValue.includes('"') || stringValue.includes(this.LINE_BREAK)) {
+      return `"${stringValue.replace(/"/g, '""')}"`;
+    }
+    return stringValue;
+  }
+};
+CsvExportService.DELIMITER = ",";
+CsvExportService.LINE_BREAK = "\n";
+CsvExportService.BOM = "\uFEFF";
+
+// src/application/use-cases/ExportToCsvUseCase.ts
+var ExportToCsvUseCase = class {
+  constructor(dataStore) {
+    this.dataStore = dataStore;
+  }
+  async execute(input) {
+    const data = await this.dataStore.load();
+    const contestId = input.contestId ?? data.activeContestId;
+    switch (input.entityType) {
+      case "sessions":
+        return this.exportSessions(data, contestId);
+      case "items":
+        return this.exportItems(data, input.subjectId);
+      case "topics":
+        return this.exportTopics(data, input.subjectId);
+      case "subjects":
+        return this.exportSubjects(data, contestId);
+      case "contests":
+        return this.exportContests(data);
+    }
+  }
+  exportSessions(data, contestId) {
+    const sessions = data.studySessions.filter((s) => contestId ? s.contestId === contestId : true).map((s) => {
+      const subject = data.subjects.find((sub) => sub.id === s.subjectId);
+      const topic = data.topics.find((t) => t.id === s.topicId);
+      const item = data.studyItems.find((i) => i.id === s.studyItemId);
+      return {
+        Data: new Date(s.studiedAt).toLocaleDateString("pt-BR"),
+        Mat\u00E9ria: subject?.name ?? "",
+        Assunto: topic?.name ?? "",
+        Item: item?.title ?? "",
+        Tipo: s.type,
+        Quantidade: s.pagesOrCount ?? 0,
+        Acertos: s.correctAnswers ?? 0,
+        Conclu\u00EDdo: s.completed ? "Sim" : "N\xE3o"
+      };
+    });
+    const csv = CsvExportService.export(sessions);
+    CsvExportService.download(csv, `sessoes-${contestId ?? "todos"}`);
+  }
+  exportItems(data, subjectId) {
+    const items = data.studyItems.filter((i) => subjectId ? i.subjectId === subjectId : true).map((i) => {
+      const subject = data.subjects.find((s) => s.id === i.subjectId);
+      return {
+        Ordem: i.order,
+        Mat\u00E9ria: subject?.name ?? "",
+        Item: i.title,
+        Peso: i.weight ?? 0,
+        "Total Quest\xF5es": i.questionCount ?? 0,
+        Refer\u00EAncias: i.resourceReferences?.length ?? 0
+      };
+    });
+    const csv = CsvExportService.export(items);
+    CsvExportService.download(csv, `itens-${subjectId ?? "todos"}`);
+  }
+  exportTopics(data, subjectId) {
+    const topics = data.topics.filter((t) => subjectId ? t.subjectId === subjectId : true).map((t) => {
+      const subject = data.subjects.find((s) => s.id === t.subjectId);
+      return {
+        Ordem: t.order,
+        Mat\u00E9ria: subject?.name ?? "",
+        Assunto: t.name,
+        Caderno: t.questionNotebook?.name ?? "",
+        Resolvidas: t.questionNotebook?.solvedQuestions ?? 0,
+        Acertos: t.questionNotebook?.correctAnswers ?? 0,
+        Refer\u00EAncias: t.resourceReferences.length
+      };
+    });
+    const csv = CsvExportService.export(topics);
+    CsvExportService.download(csv, `assuntos-${subjectId ?? "todos"}`);
+  }
+  exportSubjects(data, contestId) {
+    const subjects = data.subjects.filter((s) => contestId ? s.contestId === contestId : true).map((s) => ({
+      Ordem: s.order,
+      Nome: s.name,
+      "Minutos Planejados": s.plannedStudyMinutes,
+      Etapa: s.currentStage ?? "",
+      Ativa: s.isActive ? "Sim" : "N\xE3o",
+      "Total Itens": data.studyItems.filter((i) => i.subjectId === s.id).length,
+      "Total Assuntos": data.topics.filter((t) => t.subjectId === s.id).length
+    }));
+    const csv = CsvExportService.export(subjects);
+    CsvExportService.download(csv, `materias-${contestId ?? "todos"}`);
+  }
+  exportContests(data) {
+    const contests = data.contests.map((c) => ({
+      ID: c.id,
+      Nome: c.name,
+      Notas: c.wall.notes ?? "",
+      "Links Edital": c.wall.noticeLinks.length,
+      "Links Prova": c.wall.examLinks.length,
+      "Snapshots Mat\xE9rias": c.wall.subjectSnapshots.length,
+      Ativo: data.activeContestId === c.id ? "Sim" : "N\xE3o"
+    }));
+    const csv = CsvExportService.export(contests);
+    CsvExportService.download(csv, "concursos");
+  }
+};
+
 // src/application/use-cases/UpdateContestUseCase.ts
 var UpdateContestUseCase = class {
   constructor(dataStore) {
@@ -1409,7 +1561,8 @@ var ICON_NAMES = {
   toggleOn: "toggle-right",
   toggleOff: "toggle-left",
   expand: "chevron-down",
-  collapse: "chevron-up"
+  collapse: "chevron-up",
+  download: "download"
 };
 var TABS = [
   { id: "dashboard", label: "Dashboard", icon: ICON_NAMES.dashboard },
@@ -1769,6 +1922,22 @@ var DomHelpers = class {
   static createFormRow() {
     return this.createElement("div", "corvo-form-row");
   }
+  /**
+   * Creates a table cell with optional text or child element.
+   */
+  static createCell(text, element) {
+    const td = this.createElement("td");
+    if (text !== null) td.textContent = text;
+    if (element) td.appendChild(element);
+    return td;
+  }
+  /**
+   * Displays an error notification using Obsidian's Notice.
+   * Checks for specific error types to provide better messages.
+   */
+  static notifyError(error, fallbackMessage) {
+    new import_obsidian2.Notice(error instanceof Error ? error.message : fallbackMessage);
+  }
 };
 
 // src/ui/view/components/ContestsTab.ts
@@ -1782,9 +1951,23 @@ var ContestsTab = class {
     this.setActiveContestUseCase = new SetActiveContestUseCase(dataStore);
     this.updateContestUseCase = new UpdateContestUseCase(dataStore);
     this.deleteContestUseCase = new DeleteContestUseCase(dataStore);
+    this.exportToCsvUseCase = new ExportToCsvUseCase(dataStore);
   }
   async render(container, data) {
-    container.appendChild(DomHelpers.createSectionTitle("Concursos"));
+    const header = DomHelpers.createElement("div", "corvo-section-header");
+    header.appendChild(DomHelpers.createSectionTitle("Concursos"));
+    header.appendChild(
+      DomHelpers.createIconButton("download", "Exportar CSV", {
+        onClick: async () => {
+          try {
+            await this.exportToCsvUseCase.execute({ entityType: "contests" });
+          } catch (error) {
+            this.notifyError(error, "N\xE3o foi poss\xEDvel exportar.");
+          }
+        }
+      })
+    );
+    container.appendChild(header);
     container.appendChild(
       DomHelpers.createParagraph("Cadastre concursos e defina qual deles est\xE1 ativo.")
     );
@@ -1816,10 +1999,10 @@ var ContestsTab = class {
   renderDisplayRow(contest, data) {
     const tr = DomHelpers.createElement("tr");
     const isActive = data.activeContestId === contest.id;
-    tr.appendChild(this.createCell(contest.name));
-    tr.appendChild(this.createCell(contest.id));
-    tr.appendChild(this.createCell(contest.wall.notes ?? "\u2014"));
-    tr.appendChild(this.createCell(isActive ? "Ativo" : "Inativo"));
+    tr.appendChild(DomHelpers.createCell(contest.name));
+    tr.appendChild(DomHelpers.createCell(contest.id));
+    tr.appendChild(DomHelpers.createCell(contest.wall.notes ?? "\u2014"));
+    tr.appendChild(DomHelpers.createCell(isActive ? "Ativo" : "Inativo"));
     const actions = DomHelpers.createElement("div", "corvo-inline-actions corvo-inline-actions-compact");
     if (!isActive) {
       actions.appendChild(
@@ -1892,20 +2075,14 @@ var ContestsTab = class {
     const actions = DomHelpers.createElement("div", "corvo-inline-actions corvo-inline-actions-compact");
     actions.appendChild(saveButton);
     actions.appendChild(cancelButton);
-    tr.appendChild(this.createCell(null, nameInput));
-    tr.appendChild(this.createCell(contest.id));
-    tr.appendChild(this.createCell(null, notesInput));
-    tr.appendChild(this.createCell(data.activeContestId === contest.id ? "Ativo" : "Inativo"));
+    tr.appendChild(DomHelpers.createCell(null, nameInput));
+    tr.appendChild(DomHelpers.createCell(contest.id));
+    tr.appendChild(DomHelpers.createCell(null, notesInput));
+    tr.appendChild(DomHelpers.createCell(data.activeContestId === contest.id ? "Ativo" : "Inativo"));
     const actionsCell = DomHelpers.createElement("td");
     actionsCell.appendChild(actions);
     tr.appendChild(actionsCell);
     return tr;
-  }
-  createCell(text, element) {
-    const td = DomHelpers.createElement("td");
-    if (text !== null) td.textContent = text;
-    if (element) td.appendChild(element);
-    return td;
   }
   renderCreateContestForm() {
     const form = DomHelpers.createForm(async () => {
@@ -1957,12 +2134,26 @@ var CycleTab = class {
     this.reorderSubjectsUseCase = new ReorderSubjectsUseCase(dataStore);
     this.setSubjectActiveStateUseCase = new SetSubjectActiveStateUseCase(dataStore);
     this.updateSubjectConfigurationUseCase = new UpdateSubjectConfigurationUseCase(dataStore);
+    this.exportToCsvUseCase = new ExportToCsvUseCase(dataStore);
   }
   /**
    * Renders the cycle tab content.
    */
   async render(container, data) {
-    container.appendChild(DomHelpers.createSectionTitle("Ciclo e Mat\xE9rias"));
+    const header = DomHelpers.createElement("div", "corvo-section-header");
+    header.appendChild(DomHelpers.createSectionTitle("Ciclo e Mat\xE9rias"));
+    header.appendChild(
+      DomHelpers.createIconButton("download", "Exportar CSV", {
+        onClick: async () => {
+          try {
+            await this.exportToCsvUseCase.execute({ entityType: "subjects" });
+          } catch (error) {
+            this.notifyError(error, "N\xE3o foi poss\xEDvel exportar.");
+          }
+        }
+      })
+    );
+    container.appendChild(header);
     container.appendChild(
       DomHelpers.createParagraph("Gerencie a ordem, o status, o tempo e a etapa das mat\xE9rias.")
     );
@@ -1985,9 +2176,9 @@ var CycleTab = class {
     const table = DomHelpers.createElement("table", "corvo-table");
     const thead = DomHelpers.createElement("thead");
     const headerRow = DomHelpers.createElement("tr");
-    ["Ordem", "Mat\xE9ria", "Tempo", "Etapa", "Status", "A\xE7\xF5es"].forEach((header) => {
+    ["Ordem", "Mat\xE9ria", "Tempo", "Etapa", "Status", "A\xE7\xF5es"].forEach((header2) => {
       const th = DomHelpers.createElement("th");
-      th.textContent = header;
+      th.textContent = header2;
       headerRow.appendChild(th);
     });
     thead.appendChild(headerRow);
@@ -2005,12 +2196,12 @@ var CycleTab = class {
   }
   renderDisplayRow(subject, subjects, index, activeContestId) {
     const tr = DomHelpers.createElement("tr");
-    tr.appendChild(this.createCell(String(subject.order)));
-    tr.appendChild(this.createCell(subject.name));
-    tr.appendChild(this.createCell(`${subject.plannedStudyMinutes} min`));
-    tr.appendChild(this.createCell(subject.currentStage ?? "\u2014"));
-    tr.appendChild(this.createCell(subject.isActive ? "Ativa" : "Inativa"));
-    tr.appendChild(this.createCell(null, this.renderSubjectActionsCell(subject, subjects, index, activeContestId)));
+    tr.appendChild(DomHelpers.createCell(String(subject.order)));
+    tr.appendChild(DomHelpers.createCell(subject.name));
+    tr.appendChild(DomHelpers.createCell(`${subject.plannedStudyMinutes} min`));
+    tr.appendChild(DomHelpers.createCell(subject.currentStage ?? "\u2014"));
+    tr.appendChild(DomHelpers.createCell(subject.isActive ? "Ativa" : "Inativa"));
+    tr.appendChild(DomHelpers.createCell(null, this.renderSubjectActionsCell(subject, subjects, index, activeContestId)));
     return tr;
   }
   renderEditableRow(subject, subjects, index, activeContestId) {
@@ -2066,23 +2257,13 @@ var CycleTab = class {
         })
       );
     }
-    tr.appendChild(this.createCell(String(subject.order)));
-    tr.appendChild(this.createCell(subject.name));
-    tr.appendChild(this.createCell(null, minutesInput));
-    tr.appendChild(this.createCell(null, stageInput));
-    tr.appendChild(this.createCell(subject.isActive ? "Ativa" : "Inativa"));
-    tr.appendChild(this.createCell(null, controls));
+    tr.appendChild(DomHelpers.createCell(String(subject.order)));
+    tr.appendChild(DomHelpers.createCell(subject.name));
+    tr.appendChild(DomHelpers.createCell(null, minutesInput));
+    tr.appendChild(DomHelpers.createCell(null, stageInput));
+    tr.appendChild(DomHelpers.createCell(subject.isActive ? "Ativa" : "Inativa"));
+    tr.appendChild(DomHelpers.createCell(null, controls));
     return tr;
-  }
-  createCell(text, element) {
-    const td = DomHelpers.createElement("td");
-    if (text !== null) {
-      td.textContent = text;
-    }
-    if (element) {
-      td.appendChild(element);
-    }
-    return td;
   }
   renderCreateSubjectForm(data) {
     const activeContestId = data.activeContestId;
@@ -2443,6 +2624,30 @@ var DeleteStudyItemUseCase = class {
   }
 };
 
+// src/application/use-cases/UpdateStudyItemUseCase.ts
+var UpdateStudyItemUseCase = class {
+  constructor(dataStore) {
+    this.dataStore = dataStore;
+    this.itemRepository = new EntityRepository(dataStore, "studyItems");
+  }
+  async execute(input) {
+    if (!input.itemId?.trim()) {
+      throw new ValidationError("itemId is required");
+    }
+    if (input.weight !== void 0 && input.weight < 0) {
+      throw new ValidationError("weight cannot be negative");
+    }
+    if (input.questionCount !== void 0 && input.questionCount < 0) {
+      throw new ValidationError("questionCount cannot be negative");
+    }
+    return await this.itemRepository.update(input.itemId, (item) => ({
+      ...item,
+      weight: input.weight !== void 0 ? input.weight : item.weight,
+      questionCount: input.questionCount !== void 0 ? input.questionCount : item.questionCount
+    }));
+  }
+};
+
 // src/ui/view/components/ItemsTab.ts
 var ItemsTab = class {
   constructor(dataStore, onUpdate) {
@@ -2455,9 +2660,24 @@ var ItemsTab = class {
     this.addStudyItemResourceReferenceUseCase = new AddStudyItemResourceReferenceUseCase(dataStore);
     this.getActiveContestProgressDashboardUseCase = new GetActiveContestProgressDashboardUseCase(dataStore);
     this.deleteStudyItemUseCase = new DeleteStudyItemUseCase(dataStore);
+    this.updateStudyItemUseCase = new UpdateStudyItemUseCase(dataStore);
+    this.exportToCsvUseCase = new ExportToCsvUseCase(dataStore);
   }
   async render(container, data) {
-    container.appendChild(DomHelpers.createSectionTitle("Itens e PDFs"));
+    const header = DomHelpers.createElement("div", "corvo-section-header");
+    header.appendChild(DomHelpers.createSectionTitle("Itens e PDFs"));
+    header.appendChild(
+      DomHelpers.createIconButton("download", "Exportar CSV", {
+        onClick: async () => {
+          try {
+            await this.exportToCsvUseCase.execute({ entityType: "items", subjectId: this.selectedSubjectId ?? void 0 });
+          } catch (error) {
+            this.notifyError(error, "N\xE3o foi poss\xEDvel exportar.");
+          }
+        }
+      })
+    );
+    container.appendChild(header);
     const subject = this.getSelectedSubject(data);
     if (!subject) {
       container.appendChild(
@@ -2512,11 +2732,11 @@ var ItemsTab = class {
   renderDisplayRow(item, itemProgress, data) {
     const tr = DomHelpers.createElement("tr");
     const refs = item.resourceReferences ?? [];
-    tr.appendChild(this.createCell(String(item.order)));
-    tr.appendChild(this.createCell(item.title));
-    tr.appendChild(this.createCell(String(item.weight ?? 0)));
-    tr.appendChild(this.createCell(String(item.questionCount ?? 0)));
-    tr.appendChild(this.createCell(String(itemProgress?.progressCount ?? 0)));
+    tr.appendChild(DomHelpers.createCell(String(item.order)));
+    tr.appendChild(DomHelpers.createCell(item.title));
+    tr.appendChild(DomHelpers.createCell(String(item.weight ?? 0)));
+    tr.appendChild(DomHelpers.createCell(String(item.questionCount ?? 0)));
+    tr.appendChild(DomHelpers.createCell(String(itemProgress?.progressCount ?? 0)));
     const actions = DomHelpers.createElement("div", "corvo-inline-actions corvo-inline-actions-compact");
     const hasRefs = refs.length > 0;
     actions.appendChild(
@@ -2566,8 +2786,17 @@ var ItemsTab = class {
     const questionInput = DomHelpers.createCompactInput("number", "Qts", String(item.questionCount ?? 0));
     const saveButton = DomHelpers.createIconButton("save", "Salvar", {
       onClick: async () => {
-        this.editingItemId = null;
-        await this.onUpdate();
+        try {
+          await this.updateStudyItemUseCase.execute({
+            itemId: item.id,
+            weight: Number(weightInput.value),
+            questionCount: Number(questionInput.value)
+          });
+          this.editingItemId = null;
+          await this.onUpdate();
+        } catch (error) {
+          this.notifyError(error, "N\xE3o foi poss\xEDvel salvar.");
+        }
       }
     });
     const cancelButton = DomHelpers.createIconButton("cancel", "Cancelar", {
@@ -2579,11 +2808,11 @@ var ItemsTab = class {
     const actions = DomHelpers.createElement("div", "corvo-inline-actions corvo-inline-actions-compact");
     actions.appendChild(saveButton);
     actions.appendChild(cancelButton);
-    tr.appendChild(this.createCell(String(item.order)));
-    tr.appendChild(this.createCell(item.title));
-    tr.appendChild(this.createCell(null, weightInput));
-    tr.appendChild(this.createCell(null, questionInput));
-    tr.appendChild(this.createCell(String(itemProgress?.progressCount ?? 0)));
+    tr.appendChild(DomHelpers.createCell(String(item.order)));
+    tr.appendChild(DomHelpers.createCell(item.title));
+    tr.appendChild(DomHelpers.createCell(null, weightInput));
+    tr.appendChild(DomHelpers.createCell(null, questionInput));
+    tr.appendChild(DomHelpers.createCell(String(itemProgress?.progressCount ?? 0)));
     const actionsCell = DomHelpers.createElement("td");
     actionsCell.appendChild(actions);
     tr.appendChild(actionsCell);
@@ -2650,12 +2879,6 @@ var ItemsTab = class {
     td.appendChild(content);
     tr.appendChild(td);
     return tr;
-  }
-  createCell(text, element) {
-    const td = DomHelpers.createElement("td");
-    if (text !== null) td.textContent = text;
-    if (element) td.appendChild(element);
-    return td;
   }
   renderCreateItemForm(subjectId) {
     const titleInput = DomHelpers.createInput("text", "T\xEDtulo do item");
@@ -2747,6 +2970,37 @@ var DeleteStudySessionUseCase = class {
   }
 };
 
+// src/application/use-cases/UpdateStudySessionUseCase.ts
+var UpdateStudySessionUseCase = class {
+  constructor(dataStore) {
+    this.dataStore = dataStore;
+    this.sessionRepository = new EntityRepository(dataStore, "studySessions");
+  }
+  async execute(input) {
+    if (!input.sessionId?.trim()) {
+      throw new ValidationError("sessionId is required");
+    }
+    if (input.pagesOrCount !== void 0 && input.pagesOrCount < 0) {
+      throw new ValidationError("pagesOrCount cannot be negative");
+    }
+    if (input.correctAnswers !== void 0 && input.correctAnswers < 0) {
+      throw new ValidationError("correctAnswers cannot be negative");
+    }
+    return await this.sessionRepository.update(input.sessionId, (session) => {
+      const newCount = input.pagesOrCount !== void 0 ? input.pagesOrCount : session.pagesOrCount;
+      const newCorrect = input.correctAnswers !== void 0 ? input.correctAnswers : session.correctAnswers;
+      if (newCorrect !== void 0 && newCount !== void 0 && newCorrect > newCount) {
+        throw new ValidationError("correctAnswers cannot exceed pagesOrCount");
+      }
+      return {
+        ...session,
+        pagesOrCount: newCount,
+        correctAnswers: newCorrect
+      };
+    });
+  }
+};
+
 // src/ui/view/components/SessionsTab.ts
 var SessionsTab = class {
   constructor(dataStore, onUpdate) {
@@ -2757,9 +3011,24 @@ var SessionsTab = class {
     this.deleteStudySessionUseCase = new DeleteStudySessionUseCase(dataStore);
     this.getActiveContestSummaryUseCase = new GetActiveContestSummaryUseCase(dataStore);
     this.listSubjectsForActiveContestUseCase = new ListSubjectsForActiveContestUseCase(dataStore);
+    this.updateStudySessionUseCase = new UpdateStudySessionUseCase(dataStore);
+    this.exportToCsvUseCase = new ExportToCsvUseCase(dataStore);
   }
   async render(container, data) {
-    container.appendChild(DomHelpers.createSectionTitle("Sess\xF5es"));
+    const header = DomHelpers.createElement("div", "corvo-section-header");
+    header.appendChild(DomHelpers.createSectionTitle("Sess\xF5es"));
+    header.appendChild(
+      DomHelpers.createIconButton("download", "Exportar CSV", {
+        onClick: async () => {
+          try {
+            await this.exportToCsvUseCase.execute({ entityType: "sessions" });
+          } catch (error) {
+            this.notifyError(error, "N\xE3o foi poss\xEDvel exportar.");
+          }
+        }
+      })
+    );
+    container.appendChild(header);
     container.appendChild(
       DomHelpers.createParagraph("Registre sess\xF5es manualmente e acompanhe o hist\xF3rico recente.")
     );
@@ -2804,11 +3073,11 @@ var SessionsTab = class {
     const tr = DomHelpers.createElement("tr");
     const subjectName = data.subjects.find((subject) => subject.id === session.subjectId)?.name ?? "\u2014";
     const topicName = data.topics.find((topic) => topic.id === session.topicId)?.name ?? "\u2014";
-    tr.appendChild(this.createCell(new Date(session.studiedAt).toLocaleDateString("pt-BR")));
-    tr.appendChild(this.createCell(subjectName));
-    tr.appendChild(this.createCell(topicName));
-    tr.appendChild(this.createCell(this.formatSessionType(session.type)));
-    tr.appendChild(this.createCell(String(session.pagesOrCount ?? 0)));
+    tr.appendChild(DomHelpers.createCell(new Date(session.studiedAt).toLocaleDateString("pt-BR")));
+    tr.appendChild(DomHelpers.createCell(subjectName));
+    tr.appendChild(DomHelpers.createCell(topicName));
+    tr.appendChild(DomHelpers.createCell(this.formatSessionType(session.type)));
+    tr.appendChild(DomHelpers.createCell(String(session.pagesOrCount ?? 0)));
     const actions = DomHelpers.createElement("div", "corvo-inline-actions corvo-inline-actions-compact");
     actions.appendChild(
       DomHelpers.createIconButton("edit", "Editar", {
@@ -2844,8 +3113,16 @@ var SessionsTab = class {
     const countInput = DomHelpers.createCompactInput("number", "Qtd", String(session.pagesOrCount ?? 0));
     const saveButton = DomHelpers.createIconButton("save", "Salvar", {
       onClick: async () => {
-        this.editingSessionId = null;
-        await this.onUpdate();
+        try {
+          await this.updateStudySessionUseCase.execute({
+            sessionId: session.id,
+            pagesOrCount: Number(countInput.value)
+          });
+          this.editingSessionId = null;
+          await this.onUpdate();
+        } catch (error) {
+          this.notifyError(error, "N\xE3o foi poss\xEDvel salvar.");
+        }
       }
     });
     const cancelButton = DomHelpers.createIconButton("cancel", "Cancelar", {
@@ -2859,21 +3136,15 @@ var SessionsTab = class {
     actions.appendChild(cancelButton);
     const subjectName = data.subjects.find((subject) => subject.id === session.subjectId)?.name ?? "\u2014";
     const topicName = data.topics.find((topic) => topic.id === session.topicId)?.name ?? "\u2014";
-    tr.appendChild(this.createCell(new Date(session.studiedAt).toLocaleDateString("pt-BR")));
-    tr.appendChild(this.createCell(subjectName));
-    tr.appendChild(this.createCell(topicName));
-    tr.appendChild(this.createCell(this.formatSessionType(session.type)));
-    tr.appendChild(this.createCell(null, countInput));
+    tr.appendChild(DomHelpers.createCell(new Date(session.studiedAt).toLocaleDateString("pt-BR")));
+    tr.appendChild(DomHelpers.createCell(subjectName));
+    tr.appendChild(DomHelpers.createCell(topicName));
+    tr.appendChild(DomHelpers.createCell(this.formatSessionType(session.type)));
+    tr.appendChild(DomHelpers.createCell(null, countInput));
     const actionsCell = DomHelpers.createElement("td");
     actionsCell.appendChild(actions);
     tr.appendChild(actionsCell);
     return tr;
-  }
-  createCell(text, element) {
-    const td = DomHelpers.createElement("td");
-    if (text !== null) td.textContent = text;
-    if (element) td.appendChild(element);
-    return td;
   }
   renderSessionForm(contestId, subjects, data) {
     const form = DomHelpers.createForm(async () => {
@@ -3018,6 +3289,45 @@ var LinkQuestionNotebookUseCase = class {
   }
 };
 
+// src/application/use-cases/UpdateTopicUseCase.ts
+var UpdateTopicUseCase = class {
+  constructor(dataStore) {
+    this.dataStore = dataStore;
+    this.topicRepository = new EntityRepository(dataStore, "topics");
+  }
+  async execute(input) {
+    if (!input.topicId?.trim()) {
+      throw new ValidationError("topicId is required");
+    }
+    if (input.name !== void 0 && !input.name.trim()) {
+      throw new ValidationError("name cannot be empty");
+    }
+    return await this.topicRepository.update(input.topicId, (topic) => {
+      let notebook = topic.questionNotebook;
+      if (input.questionNotebook) {
+        const solved = input.questionNotebook.solvedQuestions ?? notebook?.solvedQuestions ?? 0;
+        const correct = input.questionNotebook.correctAnswers ?? notebook?.correctAnswers ?? 0;
+        if (correct > solved) {
+          throw new ValidationError("correctAnswers cannot exceed solvedQuestions");
+        }
+        notebook = new QuestionNotebook(
+          input.questionNotebook.id,
+          input.questionNotebook.name,
+          input.questionNotebook.url,
+          solved,
+          correct,
+          notebook?.notes
+        );
+      }
+      return {
+        ...topic,
+        name: input.name ?? topic.name,
+        questionNotebook: notebook
+      };
+    });
+  }
+};
+
 // src/ui/view/components/TopicsTab.ts
 var TopicsTab = class {
   constructor(dataStore, onUpdate) {
@@ -3030,9 +3340,24 @@ var TopicsTab = class {
     this.addTopicResourceReferenceUseCase = new AddTopicResourceReferenceUseCase(dataStore);
     this.linkQuestionNotebookUseCase = new LinkQuestionNotebookUseCase(dataStore);
     this.deleteTopicUseCase = new DeleteTopicUseCase(dataStore);
+    this.updateTopicUseCase = new UpdateTopicUseCase(dataStore);
+    this.exportToCsvUseCase = new ExportToCsvUseCase(dataStore);
   }
   async render(container, data) {
-    container.appendChild(DomHelpers.createSectionTitle("Assuntos e Quest\xF5es"));
+    const header = DomHelpers.createElement("div", "corvo-section-header");
+    header.appendChild(DomHelpers.createSectionTitle("Assuntos e Quest\xF5es"));
+    header.appendChild(
+      DomHelpers.createIconButton("download", "Exportar CSV", {
+        onClick: async () => {
+          try {
+            await this.exportToCsvUseCase.execute({ entityType: "topics", subjectId: this.selectedSubjectId ?? void 0 });
+          } catch (error) {
+            this.notifyError(error, "N\xE3o foi poss\xEDvel exportar.");
+          }
+        }
+      })
+    );
+    container.appendChild(header);
     const subject = this.getSelectedSubject(data);
     if (!subject) {
       container.appendChild(
@@ -3080,11 +3405,11 @@ var TopicsTab = class {
   renderDisplayRow(topic, data) {
     const tr = DomHelpers.createElement("tr");
     const hasDetails = topic.resourceReferences.length > 0 || topic.questionNotebook;
-    tr.appendChild(this.createCell(String(topic.order)));
-    tr.appendChild(this.createCell(topic.name));
-    tr.appendChild(this.createCell(topic.questionNotebook?.name ?? "\u2014"));
-    tr.appendChild(this.createCell(String(topic.questionNotebook?.solvedQuestions ?? 0)));
-    tr.appendChild(this.createCell(String(topic.questionNotebook?.correctAnswers ?? 0)));
+    tr.appendChild(DomHelpers.createCell(String(topic.order)));
+    tr.appendChild(DomHelpers.createCell(topic.name));
+    tr.appendChild(DomHelpers.createCell(topic.questionNotebook?.name ?? "\u2014"));
+    tr.appendChild(DomHelpers.createCell(String(topic.questionNotebook?.solvedQuestions ?? 0)));
+    tr.appendChild(DomHelpers.createCell(String(topic.questionNotebook?.correctAnswers ?? 0)));
     const actions = DomHelpers.createElement("div", "corvo-inline-actions corvo-inline-actions-compact");
     actions.appendChild(
       DomHelpers.createIconButton(
@@ -3142,8 +3467,23 @@ var TopicsTab = class {
     );
     const saveButton = DomHelpers.createIconButton("save", "Salvar", {
       onClick: async () => {
-        this.editingTopicId = null;
-        await this.onUpdate();
+        try {
+          await this.updateTopicUseCase.execute({
+            topicId: topic.id,
+            name: nameInput.value,
+            questionNotebook: topic.questionNotebook ? {
+              id: topic.questionNotebook.id,
+              name: topic.questionNotebook.name,
+              url: topic.questionNotebook.url,
+              solvedQuestions: Number(solvedInput.value),
+              correctAnswers: Number(correctInput.value)
+            } : void 0
+          });
+          this.editingTopicId = null;
+          await this.onUpdate();
+        } catch (error) {
+          this.notifyError(error, "N\xE3o foi poss\xEDvel salvar.");
+        }
       }
     });
     const cancelButton = DomHelpers.createIconButton("cancel", "Cancelar", {
@@ -3155,11 +3495,11 @@ var TopicsTab = class {
     const actions = DomHelpers.createElement("div", "corvo-inline-actions corvo-inline-actions-compact");
     actions.appendChild(saveButton);
     actions.appendChild(cancelButton);
-    tr.appendChild(this.createCell(String(topic.order)));
-    tr.appendChild(this.createCell(null, nameInput));
-    tr.appendChild(this.createCell(null, DomHelpers.createParagraph(topic.questionNotebook?.name ?? "\u2014")));
-    tr.appendChild(this.createCell(null, solvedInput));
-    tr.appendChild(this.createCell(null, correctInput));
+    tr.appendChild(DomHelpers.createCell(String(topic.order)));
+    tr.appendChild(DomHelpers.createCell(null, nameInput));
+    tr.appendChild(DomHelpers.createCell(null, DomHelpers.createParagraph(topic.questionNotebook?.name ?? "\u2014")));
+    tr.appendChild(DomHelpers.createCell(null, solvedInput));
+    tr.appendChild(DomHelpers.createCell(null, correctInput));
     const actionsCell = DomHelpers.createElement("td");
     actionsCell.appendChild(actions);
     tr.appendChild(actionsCell);
@@ -3254,12 +3594,6 @@ var TopicsTab = class {
     td.appendChild(content);
     tr.appendChild(td);
     return tr;
-  }
-  createCell(text, element) {
-    const td = DomHelpers.createElement("td");
-    if (text !== null) td.textContent = text;
-    if (element) td.appendChild(element);
-    return td;
   }
   renderCreateTopicForm(subjectId) {
     const nameInput = DomHelpers.createInput("text", "Nome do assunto");
