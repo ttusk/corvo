@@ -317,6 +317,13 @@
   border-top: 1px solid var(--corvo-border);
 }
 
+/* Remove duplicate border when table-wrapper is directly below a card subtitle */
+.corvo-section-subtitle + .corvo-table-wrapper,
+.corvo-section-subtitle + .corvo-paragraph + .corvo-table-wrapper,
+.corvo-section-subtitle + .corvo-empty-state + .corvo-table-wrapper {
+  border-top: 0;
+}
+
 .corvo-editing-row {
   background: var(--background-modifier-hover);
 }
