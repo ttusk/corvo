@@ -422,8 +422,7 @@ export async function seedTceSpDemo(dataStore: PluginDataStore): Promise<SeededC
         const topic = await createTopic.execute({
           id: topicSpec.id,
           subjectId: subject.id,
-          name: topicSpec.name,
-          order: index + 1
+          name: topicSpec.name
         });
 
         const linkedTopic = await linkNotebook.execute({

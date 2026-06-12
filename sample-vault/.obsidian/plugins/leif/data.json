@@ -216,7 +216,8 @@
       ],
       "topicIds": [
         "tce-constitutional-rights",
-        "tce-constitutional-state"
+        "tce-constitutional-state",
+        "tce-constitutional-topic-1781262485365"
       ]
     },
     {
@@ -337,7 +338,6 @@
       "id": "tce-portuguese-interpretation",
       "subjectId": "tce-portuguese",
       "name": "Compreensão e interpretação",
-      "order": 1,
       "resourceReferences": [],
       "questionNotebook": {
         "id": "tce-portuguese-interpretation-notebook",
@@ -351,7 +351,6 @@
       "id": "tce-portuguese-syntax",
       "subjectId": "tce-portuguese",
       "name": "Concordância e regência",
-      "order": 2,
       "resourceReferences": [],
       "questionNotebook": {
         "id": "tce-portuguese-syntax-notebook",
@@ -365,7 +364,6 @@
       "id": "tce-constitutional-rights",
       "subjectId": "tce-constitutional",
       "name": "Direitos e garantias fundamentais",
-      "order": 1,
       "resourceReferences": [],
       "questionNotebook": {
         "id": "tce-constitutional-rights-notebook",
@@ -379,7 +377,6 @@
       "id": "tce-constitutional-state",
       "subjectId": "tce-constitutional",
       "name": "Organização político-administrativa",
-      "order": 2,
       "resourceReferences": [],
       "questionNotebook": {
         "id": "tce-constitutional-state-notebook",
@@ -393,7 +390,6 @@
       "id": "tce-control-courts",
       "subjectId": "tce-external-control",
       "name": "Competências dos Tribunais de Contas",
-      "order": 1,
       "resourceReferences": [],
       "questionNotebook": {
         "id": "tce-control-courts-notebook",
@@ -407,7 +403,6 @@
       "id": "tce-control-audit",
       "subjectId": "tce-external-control",
       "name": "Auditoria governamental",
-      "order": 2,
       "resourceReferences": [],
       "questionNotebook": {
         "id": "tce-control-audit-notebook",
@@ -421,7 +416,6 @@
       "id": "sefaz-tax-icms",
       "subjectId": "sefaz-tax-law",
       "name": "Hipóteses de incidência do ICMS",
-      "order": 1,
       "resourceReferences": [],
       "questionNotebook": {
         "id": "sefaz-tax-icms-notebook",
@@ -435,7 +429,6 @@
       "id": "sefaz-tax-credit",
       "subjectId": "sefaz-tax-law",
       "name": "Lançamento e crédito tributário",
-      "order": 2,
       "resourceReferences": [],
       "questionNotebook": {
         "id": "sefaz-tax-credit-notebook",
@@ -449,7 +442,6 @@
       "id": "sefaz-accounting-statements",
       "subjectId": "sefaz-accounting",
       "name": "Balanço patrimonial e DRE",
-      "order": 1,
       "resourceReferences": [],
       "questionNotebook": {
         "id": "sefaz-accounting-statements-notebook",
@@ -463,7 +455,6 @@
       "id": "sefaz-accounting-analysis",
       "subjectId": "sefaz-accounting",
       "name": "Índices financeiros",
-      "order": 2,
       "resourceReferences": [],
       "questionNotebook": {
         "id": "sefaz-accounting-analysis-notebook",
@@ -477,7 +468,6 @@
       "id": "sefaz-finance-interest",
       "subjectId": "sefaz-finance",
       "name": "Taxas equivalentes",
-      "order": 1,
       "resourceReferences": [],
       "questionNotebook": {
         "id": "sefaz-finance-interest-notebook",
@@ -491,7 +481,6 @@
       "id": "sefaz-finance-amortization",
       "subjectId": "sefaz-finance",
       "name": "Tabela Price e SAC",
-      "order": 2,
       "resourceReferences": [],
       "questionNotebook": {
         "id": "sefaz-finance-amortization-notebook",
@@ -505,7 +494,6 @@
       "id": "trt-labor-contract",
       "subjectId": "trt-labor-law",
       "name": "Vínculo empregatício",
-      "order": 1,
       "resourceReferences": [],
       "questionNotebook": {
         "id": "trt-labor-contract-notebook",
@@ -519,7 +507,6 @@
       "id": "trt-labor-hours",
       "subjectId": "trt-labor-law",
       "name": "Horas extras e adicionais",
-      "order": 2,
       "resourceReferences": [],
       "questionNotebook": {
         "id": "trt-labor-hours-notebook",
@@ -533,7 +520,6 @@
       "id": "trt-procedure-appeals",
       "subjectId": "trt-labor-procedure",
       "name": "Recurso ordinário e revista",
-      "order": 1,
       "resourceReferences": [],
       "questionNotebook": {
         "id": "trt-procedure-appeals-notebook",
@@ -547,7 +533,6 @@
       "id": "trt-procedure-execution",
       "subjectId": "trt-labor-procedure",
       "name": "Liquidação e execução",
-      "order": 2,
       "resourceReferences": [],
       "questionNotebook": {
         "id": "trt-procedure-execution-notebook",
@@ -561,7 +546,6 @@
       "id": "trt-portuguese-official",
       "subjectId": "trt-portuguese",
       "name": "Comunicação oficial",
-      "order": 1,
       "resourceReferences": [],
       "questionNotebook": {
         "id": "trt-portuguese-official-notebook",
@@ -575,7 +559,6 @@
       "id": "trt-portuguese-punctuation",
       "subjectId": "trt-portuguese",
       "name": "Uso da vírgula",
-      "order": 2,
       "resourceReferences": [],
       "questionNotebook": {
         "id": "trt-portuguese-punctuation-notebook",
@@ -584,6 +567,12 @@
         "solvedQuestions": 20,
         "correctAnswers": 16
       }
+    },
+    {
+      "id": "tce-constitutional-topic-1781262485365",
+      "subjectId": "tce-constitutional",
+      "name": "Teste",
+      "resourceReferences": []
     }
   ],
   "studyItems": [

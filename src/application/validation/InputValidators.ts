@@ -105,12 +105,11 @@ export class CreateStudyItemValidator {
  * Validates input for creating a topic.
  */
 export class CreateTopicValidator {
-  validate(input: { id: string; subjectId: string; name: string; order?: number }): ValidationResult {
+  validate(input: { id: string; subjectId: string; name: string }): ValidationResult {
     return collectErrors(
       requireNonEmpty(input.id, "ID"),
       requireNonEmpty(input.subjectId, "Subject ID"),
-      requireNonEmpty(input.name, "Name"),
-      requireNonNegative(input.order, "Order")
+      requireNonEmpty(input.name, "Name")
     );
   }
 }

@@ -85,7 +85,6 @@ export class ExportToCsvUseCase {
         const subject = data.subjects.find((s) => s.id === t.subjectId);
 
         return {
-          Ordem: t.order,
           Matéria: subject?.name ?? "",
           Assunto: t.name,
           Caderno: t.questionNotebook?.name ?? "",

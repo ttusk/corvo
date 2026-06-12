@@ -56,8 +56,7 @@ export class TopicsTab {
     container.appendChild(this.renderSubjectPicker(data));
 
     const topics = data.topics
-      .filter((topic) => topic.subjectId === subject.id)
-      .sort((left, right) => left.order - right.order);
+      .filter((topic) => topic.subjectId === subject.id);
 
     const card = DomHelpers.createCard(`Assuntos de ${subject.name}`);
 
@@ -68,7 +67,6 @@ export class TopicsTab {
     }
 
     const { container: tableContainer, tbody } = DomHelpers.createCrudTable([
-      "Ordem",
       "Assunto",
       "Caderno",
       "Resolv.",
@@ -100,7 +98,6 @@ export class TopicsTab {
     tr.dataset.topicId = topic.id;
     const hasDetails = Boolean(topic.questionNotebook);
 
-    tr.appendChild(DomHelpers.createCell(String(topic.order)));
     tr.appendChild(DomHelpers.createCell(topic.name));
     tr.appendChild(DomHelpers.createCell(null, this.renderNotebookCell(topic)));
     tr.appendChild(DomHelpers.createCell(String(topic.questionNotebook?.solvedQuestions ?? 0)));
@@ -227,7 +224,6 @@ export class TopicsTab {
     actions.appendChild(saveButton);
     actions.appendChild(cancelButton);
 
-    tr.appendChild(DomHelpers.createCell(String(topic.order)));
     tr.appendChild(DomHelpers.createCell(null, nameInput));
     tr.appendChild(DomHelpers.createCell(null, DomHelpers.createParagraph(topic.questionNotebook?.name ?? "—")));
     tr.appendChild(DomHelpers.createCell(null, solvedInput));
@@ -245,7 +241,7 @@ export class TopicsTab {
     tr.className = "leif-detail-row";
 
     const td = DomHelpers.createElement("td");
-    td.colSpan = 6;
+    td.colSpan = 5;
 
     const content = DomHelpers.createElement("div", "leif-detail-content");
 
@@ -300,15 +296,13 @@ export class TopicsTab {
 
   private openCreateTopicModal(subjectId: string): void {
     const nameInput = DomHelpers.createInput("text", "Nome do assunto");
-    const orderInput = DomHelpers.createInput("number", "Ordem", "1");
 
     const form = DomHelpers.createForm(async () => {
       try {
         await this.createTopicUseCase.execute({
           id: `${subjectId}-topic-${Date.now()}`,
           subjectId,
-          name: nameInput.value,
-          order: Number(orderInput.value)
+          name: nameInput.value
         });
         modal.close();
         await this.onUpdate();
@@ -317,10 +311,7 @@ export class TopicsTab {
       }
     });
 
-    form.append(
-      DomHelpers.createLabel("Nome", nameInput),
-      DomHelpers.createLabel("Ordem", orderInput)
-    );
+    form.append(DomHelpers.createLabel("Nome", nameInput));
 
     const modal = DomHelpers.createModal({
       title: "Novo assunto",

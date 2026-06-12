@@ -9,7 +9,6 @@ export interface CreateTopicInput {
   id: string;
   subjectId: string;
   name: string;
-  order?: number;
 }
 
 /**
@@ -30,16 +29,12 @@ export class CreateTopicUseCase {
       throw new ValidationError(validation.errors.join(", "));
     }
 
-    const subject = await this.subjectRepository.findById(input.subjectId);
-
-    const subjectTopics = (await this.topicRepository.findAll())
-      .filter((topic) => topic.subjectId === input.subjectId);
+    await this.subjectRepository.findById(input.subjectId);
 
     const topic = new Topic(
       input.id,
       input.subjectId,
       input.name,
-      input.order ?? subjectTopics.length + 1,
       []
     );
 

@@ -954,4 +954,47 @@ describe("LeifView", () => {
     expect(openSpy).toHaveBeenCalledWith("https://tec.example.com/coordenadas", "_blank", "noopener");
     window.open = originalOpen;
   });
+
+  it("does not expose ordering controls for topics", async () => {
+    const dataStore = new InMemoryPluginDataStore();
+    await seedUiData(dataStore);
+
+    const createTopic = new CreateTopicUseCase(dataStore);
+    await createTopic.execute({
+      id: "topic-sem-ordem",
+      subjectId: "subject-1",
+      name: "Orações sem ordem própria"
+    });
+
+    const { leaf } = await openLeifView(dataStore);
+    const topicsTabButton = leaf.containerEl.querySelector<HTMLButtonElement>("[data-tab='topics']");
+
+    if (!topicsTabButton) {
+      throw new Error("Topics tab button was not rendered.");
+    }
+
+    topicsTabButton.click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const headerTexts = Array.from(leaf.containerEl.querySelectorAll("table.leif-table thead th"))
+      .map((header) => header.textContent?.trim() ?? "");
+
+    expect(headerTexts).toEqual(["Assunto", "Caderno", "Resolv.", "Acert.", "Ações"]);
+
+    const newTopicButton = leaf.containerEl.querySelector<HTMLButtonElement>(
+      "button.leif-icon-button[title='Novo assunto']"
+    );
+
+    if (!newTopicButton) {
+      throw new Error("New topic button was not rendered.");
+    }
+
+    newTopicButton.click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const modal = document.body.querySelector(".leif-modal-card");
+    expect(modal?.textContent).toContain("Novo assunto");
+    expect(modal?.textContent).not.toContain("Ordem");
+    expect(modal?.querySelector<HTMLInputElement>("input[placeholder='Ordem']")).toBeNull();
+  });
 });

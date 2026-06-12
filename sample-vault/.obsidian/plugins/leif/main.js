@@ -640,8 +640,7 @@ var CreateTopicValidator = class {
     return collectErrors(
       requireNonEmpty(input.id, "ID"),
       requireNonEmpty(input.subjectId, "Subject ID"),
-      requireNonEmpty(input.name, "Name"),
-      requireNonNegative(input.order, "Order")
+      requireNonEmpty(input.name, "Name")
     );
   }
 };
@@ -856,17 +855,15 @@ var CreateSubjectUseCase = class {
 
 // src/domain/entities/Topic.ts
 var Topic = class {
-  constructor(id, subjectId, name, order, resourceReferences = [], questionNotebook) {
+  constructor(id, subjectId, name, resourceReferences = [], questionNotebook) {
     this.id = id;
     this.subjectId = subjectId;
     this.name = name;
-    this.order = order;
     this.resourceReferences = resourceReferences;
     this.questionNotebook = questionNotebook;
     if (!id?.trim()) throw new ValidationError("Topic ID is required");
     if (!subjectId?.trim()) throw new ValidationError("Topic subjectId is required");
     if (!name?.trim()) throw new ValidationError("Topic name is required");
-    if (order < 0) throw new ValidationError("Topic order cannot be negative");
   }
 };
 
@@ -882,19 +879,17 @@ var CreateTopicUseCase = class {
     if (!validation.valid) {
       throw new ValidationError(validation.errors.join(", "));
     }
-    const subject = await this.subjectRepository.findById(input.subjectId);
-    const subjectTopics = (await this.topicRepository.findAll()).filter((topic2) => topic2.subjectId === input.subjectId);
+    await this.subjectRepository.findById(input.subjectId);
     const topic = new Topic(
       input.id,
       input.subjectId,
       input.name,
-      input.order ?? subjectTopics.length + 1,
       []
     );
     await this.topicRepository.create(topic);
-    await this.subjectRepository.update(input.subjectId, (subject2) => ({
-      ...subject2,
-      topicIds: [...subject2.topicIds, topic.id]
+    await this.subjectRepository.update(input.subjectId, (subject) => ({
+      ...subject,
+      topicIds: [...subject.topicIds, topic.id]
     }));
     return topic;
   }
@@ -1534,8 +1529,7 @@ async function seedTceSpDemo(dataStore) {
         const topic = await createTopic.execute({
           id: topicSpec.id,
           subjectId: subject.id,
-          name: topicSpec.name,
-          order: index + 1
+          name: topicSpec.name
         });
         const linkedTopic = await linkNotebook.execute({
           topicId: topic.id,
@@ -3814,7 +3808,7 @@ var TopicsTab = class {
       return;
     }
     container.appendChild(this.renderSubjectPicker(data));
-    const topics = data.topics.filter((topic) => topic.subjectId === subject.id).sort((left, right) => left.order - right.order);
+    const topics = data.topics.filter((topic) => topic.subjectId === subject.id);
     const card = DomHelpers.createCard(`Assuntos de ${subject.name}`);
     if (topics.length === 0) {
       card.appendChild(DomHelpers.createParagraph("Nenhum assunto cadastrado."));
@@ -3822,7 +3816,6 @@ var TopicsTab = class {
       return;
     }
     const { container: tableContainer, tbody } = DomHelpers.createCrudTable([
-      "Ordem",
       "Assunto",
       "Caderno",
       "Resolv.",
@@ -3848,7 +3841,6 @@ var TopicsTab = class {
     const tr = DomHelpers.createElement("tr");
     tr.dataset.topicId = topic.id;
     const hasDetails = Boolean(topic.questionNotebook);
-    tr.appendChild(DomHelpers.createCell(String(topic.order)));
     tr.appendChild(DomHelpers.createCell(topic.name));
     tr.appendChild(DomHelpers.createCell(null, this.renderNotebookCell(topic)));
     tr.appendChild(DomHelpers.createCell(String(topic.questionNotebook?.solvedQuestions ?? 0)));
@@ -3959,7 +3951,6 @@ var TopicsTab = class {
     const actions = DomHelpers.createElement("div", "leif-inline-actions leif-inline-actions-compact");
     actions.appendChild(saveButton);
     actions.appendChild(cancelButton);
-    tr.appendChild(DomHelpers.createCell(String(topic.order)));
     tr.appendChild(DomHelpers.createCell(null, nameInput));
     tr.appendChild(DomHelpers.createCell(null, DomHelpers.createParagraph(topic.questionNotebook?.name ?? "\u2014")));
     tr.appendChild(DomHelpers.createCell(null, solvedInput));
@@ -3973,7 +3964,7 @@ var TopicsTab = class {
     const tr = DomHelpers.createElement("tr");
     tr.className = "leif-detail-row";
     const td = DomHelpers.createElement("td");
-    td.colSpan = 6;
+    td.colSpan = 5;
     const content = DomHelpers.createElement("div", "leif-detail-content");
     const notebookName = DomHelpers.createInput("text", "Caderno", topic.questionNotebook?.name ?? "");
     const notebookUrl = DomHelpers.createInput("url", "URL", topic.questionNotebook?.url ?? "");
@@ -4020,14 +4011,12 @@ var TopicsTab = class {
   }
   openCreateTopicModal(subjectId) {
     const nameInput = DomHelpers.createInput("text", "Nome do assunto");
-    const orderInput = DomHelpers.createInput("number", "Ordem", "1");
     const form = DomHelpers.createForm(async () => {
       try {
         await this.createTopicUseCase.execute({
           id: `${subjectId}-topic-${Date.now()}`,
           subjectId,
-          name: nameInput.value,
-          order: Number(orderInput.value)
+          name: nameInput.value
         });
         modal.close();
         await this.onUpdate();
@@ -4035,10 +4024,7 @@ var TopicsTab = class {
         this.notifyError(error, "N\xE3o foi poss\xEDvel criar o assunto.");
       }
     });
-    form.append(
-      DomHelpers.createLabel("Nome", nameInput),
-      DomHelpers.createLabel("Ordem", orderInput)
-    );
+    form.append(DomHelpers.createLabel("Nome", nameInput));
     const modal = DomHelpers.createModal({
       title: "Novo assunto",
       content: form,

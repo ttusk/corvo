@@ -67,12 +67,10 @@ describe("Entity Classes", () => {
 
   describe("Topic", () => {
     it("creates a valid topic", () => {
-      const topic = new Topic("t-1", "s-1", "Clauses", 1);
+      const topic = new Topic("t-1", "s-1", "Clauses");
       expect(topic.id).toBe("t-1");
-    });
-
-    it("throws when order is negative", () => {
-      expect(() => new Topic("t-1", "s-1", "Clauses", -1)).toThrow(ValidationError);
+      expect(topic.subjectId).toBe("s-1");
+      expect(topic.name).toBe("Clauses");
     });
   });
 
